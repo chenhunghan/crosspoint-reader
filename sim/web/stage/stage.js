@@ -9,11 +9,12 @@ import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
 import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
 import XtermHeadless from '@xterm/headless';
-import {SimHost, KEY, UI_W, UI_H, parseBridge} from './sim-host.js';
-import {TermCanvas} from './term-canvas.js';
-import {Replay, ReplaySocket, parseCast} from './replay.js';
+import {SimHost, KEYBOARD, UI_W, UI_H, parseBridge} from '../core/sim-host.js';
+import {TermCanvas} from '../core/term-canvas.js';
+import {Replay, ReplaySocket, parseCast} from '../core/replay.js';
 import {buildLaptop} from './laptop.js';
 import {buildDevice, DEV} from './device.js';
+import {startDevLoop} from '../core/devloop.js';
 
 const $ = (id) => document.getElementById(id);
 const q = new URLSearchParams(location.search);
@@ -94,7 +95,7 @@ scene.add(laptop.group);
 
 // ───────────────────────────────────────────────────────────── device on a small stand
 const sim = new SimHost({
-  ...(MODE === 'live' ? liveDeviceTarget() : {host: 'demo', port: 7878, token: 'demo1234'}),
+  config: MODE === 'live' ? liveDeviceTarget() : {host: 'demo', port: 7878, token: 'demo1234'},
   openSocket: (url) => (MODE === 'live' ? new WebSocket(url) : new ReplaySocket(replay, socketHooks)),
   onLink: (state, text) => setPill('dev', state, (MODE === 'live' ? 'device · ' : 'device · demo bridge · ') + text),
   onLog: (line) => console.debug('[fw]', line),
@@ -272,12 +273,8 @@ function updateHover() {
   renderer.domElement.title = p ? (p.kind === 'screen' ? 'Tap the e-ink screen' : p.mesh.userData.title) : '';
 }
 
-// Hardware-key shortcuts (same as dev.html), animated on the 3D buttons.
-const KEYMAP = {
-  Enter: ['boot', KEY.Confirm], ArrowUp: ['volUp', KEY.Up], ArrowDown: ['volDown', KEY.Down],
-  ArrowLeft: [null, KEY.Left], ArrowRight: [null, KEY.Right], Escape: [null, KEY.Back], Backspace: [null, KEY.Back],
-  h: ['home', KEY.Home], H: ['home', KEY.Home], p: ['power', KEY.Power], P: ['power', KEY.Power],
-};
+// Hardware-key shortcuts (same as the device page), animated on the 3D buttons.
+const KEYMAP = KEYBOARD;
 const typing = (ev) => ev.target && /INPUT|TEXTAREA/.test(ev.target.tagName);
 addEventListener('keydown', (ev) => {
   if (typing(ev) || ev.metaKey || ev.ctrlKey || ev.altKey) return;
@@ -608,6 +605,7 @@ window.__stage = {
 };
 
 (async function main() {
+  startDevLoop(); // reloads on rebuild when served by sim/dev.sh
   requestAnimationFrame(frame);
   flyTo('overview', 2.2);
   try { await Promise.race([document.fonts.load('500 20px "DM Mono"'), new Promise((r) => setTimeout(r, 2500))]); } catch (e) { /* fallback font */ }

@@ -3,177 +3,274 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Agent Mux Stage</title>
-<meta name="description" content="Claude Code on a laptop, controlled from a Metalio E-Ink 4 running the real CrossPoint firmware (WebAssembly).">
+<title>CrossPoint Simulator</title>
+<meta name="description" content="The real CrossPoint / Agent Mux firmware (WebAssembly) on a Metalio E-Ink 4, at exact pixels.">
+<meta name="sim-build" content="__SIM_BUILD__">
 <script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.183.2/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.2/examples/jsm/",
-    "@xterm/headless": "https://cdn.jsdelivr.net/npm/@xterm/headless@6.0.0/+esm"
+{ "imports": { "@xterm/headless": "https://cdn.jsdelivr.net/npm/@xterm/headless@6.0.0/+esm" } }
+</script>
+<style>
+:root {
+  --bg: #efeee9; --bg2: #e6e4de; --panel: #fbfaf7; --text: #1f2125; --muted: #6a6e75; --line: #dcdad3;
+  --field: #ffffff; --accent: #e8662a; --ok: #2f9e5b; --warn: #c48a12; --err: #d0453b;
+  --kbd: #f3f2ee; --log: #f6f5f1; --rx: #2f5ea8; --tx: #a4561a;
+  /* the device itself is always the white Metalio */
+  --body: #f7f7f4; --body-edge: #d6d6d0; --bezel: #e7e8e4; --glass: #cbc9c2; --paper: #e9e6dd;
+  --orange: #f2762e; --orange-dk: #d9611d; --pill: #4b4e54; --pill-dk: #3a3d42;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #17181b; --bg2: #1d1f23; --panel: #1f2125; --text: #e7e6e2; --muted: #9a9ea6; --line: #33363c;
+    --field: #15161a; --kbd: #2a2d32; --log: #15161a; --rx: #8fb7f5; --tx: #f2b27f;
+    color-scheme: dark;
   }
 }
-</script>
-<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-<style>
-/* Look adapted from lns-lab. */
-:root{
-  font-family:'Outfit',system-ui,-apple-system,Segoe UI,Arial,sans-serif;color:#eef2fa;background:#070a12;font-synthesis:none;
-  --ink:#eef2fa;--mute:#9ea8c2;--dim:#6f7894;--line:#ffffff1a;--line2:#ffffff2c;
-  --glass:linear-gradient(155deg,#131a2bea,#0b101ce6);
-  --cyan:#7fe3ff;--amber:#ffc857;--orange:#f2762e;--green:#5ee89a;--red:#ff6b76;
-  --acc:var(--orange);
-  --mono:'DM Mono',ui-monospace,SFMono-Regular,Menlo,monospace;
+:root[data-theme="dark"] {
+  --bg: #17181b; --bg2: #1d1f23; --panel: #1f2125; --text: #e7e6e2; --muted: #9a9ea6; --line: #33363c;
+  --field: #15161a; --kbd: #2a2d32; --log: #15161a; --rx: #8fb7f5; --tx: #f2b27f;
+  color-scheme: dark;
 }
-*{box-sizing:border-box}
-[hidden]{display:none!important}
-html,body{margin:0;height:100%;background:#070a12;overflow:hidden}
-button{font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
-button:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
-a{color:var(--cyan)}
-#app{position:fixed;inset:0;isolation:isolate;user-select:none;-webkit-user-select:none;overflow:hidden}
-#world{position:absolute;inset:0;z-index:0}
-#world canvas{display:block;width:100%;height:100%;cursor:grab;touch-action:none}
-#world canvas.hot{cursor:pointer}
-#world canvas:active{cursor:grabbing}
-#world canvas.hot:active{cursor:pointer}
-.vignette{position:absolute;inset:0;z-index:1;pointer-events:none;background:radial-gradient(ellipse at 50% 50%,transparent 58%,#030409a0 100%)}
-#loading{position:absolute;inset:0;display:grid;place-items:center;z-index:30;background:#070a12;transition:opacity .8s,visibility .8s}
-#loading.done{opacity:0;visibility:hidden}
-#loading .ld{display:flex;flex-direction:column;align-items:center;gap:14px;color:var(--mute);font-size:13px;letter-spacing:.04em}
-#loading .cube{width:30px;height:46px;border:2px solid #e9e6dd;border-radius:6px;display:grid;place-items:end center;padding-bottom:5px;animation:spin 2.4s cubic-bezier(.6,0,.4,1) infinite}
-#loading .cube i{width:7px;height:7px;border-radius:50%;background:var(--orange);box-shadow:0 0 12px var(--orange)}
-@keyframes spin{0%{transform:rotate(0)}50%{transform:rotate(180deg)}100%{transform:rotate(360deg)}}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--text); font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--accent); }
+kbd { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; background: var(--kbd); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; }
 
-.card{border:1px solid var(--line);border-radius:8px;background:var(--glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 18px 50px -20px #000c}
-.brand{position:absolute;left:22px;top:20px;z-index:5;max-width:min(360px,calc(100vw - 44px));text-shadow:0 2px 18px #000a;pointer-events:none}
-.brand .kick{display:inline-flex;align-items:center;gap:8px;font:500 10px/1 var(--mono);letter-spacing:.18em;text-transform:uppercase;color:var(--mute)}
-.brand .kick b{color:var(--orange);font-weight:500}
-.brand h1{margin:8px 0 6px;font-weight:800;line-height:.95;letter-spacing:-.4px}
-.brand h1 span{display:block;font-size:15px;letter-spacing:.6px;font-weight:600;color:#dfe6f5;text-transform:uppercase}
-.brand h1 b{display:block;font-size:34px;font-weight:800;background:linear-gradient(92deg,#ffb27a,#fff3e8);-webkit-background-clip:text;background-clip:text;color:transparent}
-.brand p{margin:0;font-size:13px;line-height:1.5;color:#c3cbdd}
-.brand a{pointer-events:auto}
+.app { display: flex; height: 100%; }
+/* ---------------- stage ---------------- */
+.stage { flex: 1; min-width: 0; display: flex; flex-direction: column; background: radial-gradient(ellipse at 50% 35%, var(--bg), var(--bg2)); }
+.toolbar { display: flex; align-items: center; gap: 10px; padding: 10px 16px; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--panel); }
+.seg button { border: 0; background: none; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--text); color: var(--panel); }
+.readout { color: var(--muted); font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.spacer { flex: 1; }
+.tbtn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 4px 10px; cursor: pointer; font-size: 12.5px; }
+.scroller { flex: 1; min-height: 0; overflow: auto; display: flex; padding: 8px 24px 24px; }
+.holder { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.hint { color: var(--muted); font-size: 12px; text-align: center; max-width: 560px; }
 
-.top-right{position:absolute;right:22px;top:20px;z-index:5;display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
-.pill{display:inline-flex;align-items:center;gap:7px;height:30px;padding:0 11px;border-radius:5px;font:500 11px/1 var(--mono);color:#cfd6e8;white-space:nowrap}
-.dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex:none}
-.dot.ok{background:var(--green);box-shadow:0 0 8px var(--green)}.dot.warn{background:var(--amber);box-shadow:0 0 8px var(--amber)}.dot.err{background:var(--red);box-shadow:0 0 8px var(--red)}
+/* ---------------- the device (sizes in --u = 1 cm of device) ---------------- */
+.device { position: relative; width: calc(var(--u) * 7.36); height: calc(var(--u) * 12.5); flex: none; }
+.body {
+  position: absolute; left: 0; top: 0; width: calc(var(--u) * 7.2); height: 100%;
+  border-radius: calc(var(--u) * 0.8); background: linear-gradient(160deg, #fdfdfb, var(--body) 45%, #efefeb);
+  box-shadow: 0 0 0 1px var(--body-edge), 0 calc(var(--u) * .25) calc(var(--u) * .9) rgba(40, 38, 30, .22), 0 1px 2px rgba(0,0,0,.08);
+}
+.bezel {
+  position: absolute; inset: calc(var(--u) * 0.16); border-radius: calc(var(--u) * 0.66);
+  background: linear-gradient(180deg, #ebece8, var(--bezel) 60%, #e2e3df);
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,.05), inset 0 1px 1px rgba(255,255,255,.8);
+}
+.window {
+  position: absolute; left: calc(var(--u) * 0.82); top: calc(var(--u) * 0.75);
+  width: calc(var(--u) * 5.56); height: calc(var(--u) * 9.093); border-radius: calc(var(--u) * 0.08);
+  background: var(--glass); box-shadow: inset 0 1px 3px rgba(0,0,0,.28), inset 0 0 0 1px rgba(0,0,0,.08);
+}
+canvas#screen {
+  position: absolute; display: block; background: var(--paper); cursor: pointer; touch-action: none;
+  image-rendering: pixelated; image-rendering: crisp-edges;
+}
+canvas#screen.flash-full { animation: flash-full 420ms steps(1, end); }
+canvas#screen.flash-half { animation: flash-half 260ms steps(1, end); }
+@keyframes flash-full { 0% { filter: invert(1); } 35% { filter: brightness(.2); } 70% { filter: none; } }
+@keyframes flash-half { 0% { filter: brightness(.55); } 60% { filter: none; } }
+.loading { position: absolute; display: grid; place-items: center; color: #8a877e; font-size: 13px; pointer-events: none; }
 
-.btn{border:1px solid var(--line2);background:#ffffff0a;border-radius:5px;height:30px;padding:0 11px;font-size:12.5px;font-weight:500;color:#e3e8f5;display:inline-flex;align-items:center;gap:7px;white-space:nowrap;transition:background .15s,border-color .15s,transform .1s}
-.btn:hover{background:#ffffff1c;border-color:#ffffff40}
-.btn:active{transform:translateY(1px)}
-.btn.pri{background:var(--acc);border-color:transparent;color:#1a0d05;font-weight:600;box-shadow:0 0 22px -6px var(--acc)}
-.btn.on{background:#eef4ff;color:#0d1322;border-color:transparent}
-.btn .k{font:500 10px/1 var(--mono);opacity:.6}
-.btn svg{width:12px;height:12px;fill:currentColor}
+.key { position: absolute; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; user-select: none; -webkit-user-select: none; }
+.key:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.home-ring { position: absolute; left: calc(var(--u) * (1.3 - .52)); top: calc(var(--u) * (10.99 - .52)); width: calc(var(--u) * 1.04); height: calc(var(--u) * 1.04); border-radius: 50%; background: #d3d4d0; box-shadow: inset 0 1px 2px rgba(0,0,0,.18); }
+.key.home { left: calc(var(--u) * (1.3 - .45)); top: calc(var(--u) * (10.99 - .45)); width: calc(var(--u) * .9); height: calc(var(--u) * .9); border-radius: 50%;
+  background: radial-gradient(circle at 42% 35%, #f8935a, var(--orange) 60%, var(--orange-dk)); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.key.pill { top: calc(var(--u) * (10.99 - .29)); width: calc(var(--u) * 1.4); height: calc(var(--u) * .58); border-radius: calc(var(--u) * .29);
+  background: linear-gradient(180deg, #5b5e64, var(--pill) 55%, var(--pill-dk)); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+.key.pill.l { left: calc(var(--u) * (4.02 - .7)); }
+.key.pill.r { left: calc(var(--u) * (5.65 - .7)); }
+.key.side { left: calc(var(--u) * 7.12); width: calc(var(--u) * .2); border-radius: 0 calc(var(--u) * .09) calc(var(--u) * .09) 0;
+  background: linear-gradient(90deg, var(--orange-dk), var(--orange) 45%, #f58b4c); box-shadow: 1px 0 2px rgba(0,0,0,.18); transition: transform 60ms; }
+.key.boot { top: calc(var(--u) * 1.425); height: calc(var(--u) * .95); }
+.key.volUp { top: calc(var(--u) * 3.23); height: calc(var(--u) * 1.05); border-radius: 0 calc(var(--u) * .09) 0 0; }
+.key.volDown { top: calc(var(--u) * 4.28); height: calc(var(--u) * 1.05); border-radius: 0 0 calc(var(--u) * .09) 0; }
+.key.volDown::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 1px; background: rgba(0,0,0,.12); }
+.key.power { top: calc(var(--u) * 6.29); height: calc(var(--u) * .62); }
+.key.pressed { filter: brightness(.86); }
+.key.home.pressed, .key.pill.pressed { transform: scale(.95); }
+.key.side.pressed { transform: translateX(calc(var(--u) * -.07)); }
 
-.dock{position:absolute;left:50%;bottom:18px;transform:translateX(-50%);z-index:6;width:min(760px,calc(100vw - 32px));display:flex;flex-direction:column;gap:8px}
-.cap{padding:12px 16px 12px 18px;position:relative;min-height:62px;display:flex;flex-direction:column;justify-content:center;gap:3px}
-.cap::before{content:"";position:absolute;left:0;top:14px;width:2px;height:22px;background:var(--c,var(--acc));box-shadow:0 0 10px var(--c,var(--acc))}
-.cap .no{font:500 10px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;color:var(--c,var(--acc))}
-.cap .tx{font-size:14px;line-height:1.5;color:#dfe5f3}
-.cap .tx code{font-family:var(--mono);font-size:12.5px;color:#fff;background:#ffffff10;border:1px solid #ffffff14;padding:0 4px;border-radius:3px}
-.cap .tx b{color:#fff}
-.cap.ask{--c:var(--amber)}
-.cap .act{margin-top:6px;display:flex;gap:6px;flex-wrap:wrap}
-.bar{display:flex;align-items:center;gap:6px;padding:6px;flex-wrap:wrap}
-.bar .sep{width:1px;height:20px;background:var(--line);margin:0 2px}
-.prog{flex:1 1 120px;height:4px;border-radius:2px;background:#ffffff14;position:relative;overflow:hidden;min-width:80px}
-.prog i{position:absolute;inset:0 auto 0 0;width:0;background:linear-gradient(90deg,var(--orange),#ffb27a)}
-.prog b{position:absolute;top:-3px;width:2px;height:10px;background:var(--amber)}
-.time{font:500 11px/1 var(--mono);color:var(--mute);min-width:74px;text-align:right}
+/* ---------------- panel ---------------- */
+.panel { width: 340px; flex: none; border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; display: flex; flex-direction: column; }
+.app.collapsed .panel { display: none; }
+.panel section { padding: 12px 16px; border-bottom: 1px solid var(--line); }
+.panel h1 { font-size: 15px; margin: 0; font-weight: 650; }
+.panel h2 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
+.meta { color: var(--muted); font-size: 12px; margin-top: 3px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; }
+.meta code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+.status { display: inline-flex; gap: 6px; align-items: center; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--ok); } .dot.warn, .dot.busy { background: var(--warn); } .dot.err, .dot.error { background: var(--err); }
+.seg.wide { display: flex; } .seg.wide button { flex: 1; padding: 6px 4px; }
+.note { color: var(--muted); font-size: 12px; margin: 8px 0 0; }
+.note code { font: 11.5px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--text); }
+label.f { display: block; font-size: 12px; color: var(--muted); margin: 8px 0 3px; }
+input[type=text] { width: 100%; padding: 6px 8px; border-radius: 7px; border: 1px solid var(--line); background: var(--field); font: 12.5px ui-monospace, SFMono-Regular, Menlo, monospace; }
+input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; align-items: center; }
+.btn { border: 1px solid var(--line); background: var(--field); border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12.5px; }
+.btn:hover { border-color: var(--muted); }
+.btn.pri { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.check { display: flex; gap: 7px; align-items: center; font-size: 12.5px; margin-top: 4px; }
+.prog { flex: 1; height: 4px; border-radius: 2px; background: var(--line); position: relative; overflow: hidden; min-width: 60px; }
+.prog i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--accent); }
+.prog b { position: absolute; top: 0; width: 2px; height: 100%; background: var(--warn); }
+.time { font: 11px ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+.caption { margin-top: 8px; font-size: 12.5px; }
+.caption.ask { color: var(--accent); font-weight: 600; }
+details summary { cursor: pointer; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+details canvas { width: 100%; display: block; margin-top: 8px; border-radius: 6px; }
+#log { margin-top: 8px; height: 280px; overflow: auto; background: var(--log); border-radius: 7px; border: 1px solid var(--line); padding: 6px 8px;
+  font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; word-break: break-all; }
+#log .rx { color: var(--rx); } #log .tx { color: var(--tx); } #log .fw { color: var(--muted); } #log .err { color: var(--err); }
+.foot { margin-top: auto; padding: 10px 16px; color: var(--muted); font-size: 12px; display: flex; gap: 12px; flex-wrap: wrap; }
+table.keys { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.keys td { padding: 2px 0; vertical-align: top; }
+table.keys td:first-child { white-space: nowrap; padding-right: 10px; }
 
-#toast{position:absolute;left:50%;top:22px;transform:translate(-50%,-20px);z-index:20;opacity:0;transition:opacity .35s,transform .35s;padding:10px 16px;font-size:13.5px;color:#fff;display:flex;gap:9px;align-items:center;pointer-events:none;max-width:calc(100vw - 32px)}
-#toast.on{opacity:1;transform:translate(-50%,0)}
-#toast::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--orange);box-shadow:0 0 10px var(--orange);flex:none}
-
-.keys{position:absolute;right:22px;top:62px;z-index:5;font:400 11px/1.6 var(--mono);color:var(--dim);text-align:right;pointer-events:none}
-.keys kbd{font:500 10px/1 var(--mono);color:#cfd6e8;border:1px solid var(--line2);border-bottom-width:2px;border-radius:3px;padding:1px 4px;background:#ffffff0a}
-
-.livebox{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:25;padding:18px;width:min(420px,calc(100vw - 32px));display:flex;flex-direction:column;gap:10px}
-.livebox h2{margin:0;font-size:17px}
-.livebox p{margin:0;font-size:12.5px;color:var(--mute);line-height:1.5}
-.livebox label{font:500 10px/1 var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--mute)}
-.livebox input{width:100%;height:32px;border-radius:5px;border:1px solid var(--line2);background:#0a0e18;color:#fff;padding:0 9px;font:13px var(--mono)}
-
-@media (max-width:1100px),(max-height:620px){.keys{display:none}}
-@media (max-width:760px){
-  .brand h1 b{font-size:24px}.brand p{display:none}
-  .brand{left:16px;top:14px;max-width:calc(100vw - 32px)}
-  .brand h1{margin:6px 0 0}.brand h1 span{display:none}
-  .top-right{left:16px;right:16px;top:74px;justify-content:flex-start;gap:6px}
-  .top-right .btn,.top-right .pill{height:26px;padding:0 8px;font-size:11.5px}
-  #toast{top:auto;bottom:190px}
-  .dock{bottom:12px}
-  .cap .tx{font-size:13px}
+@media (max-width: 760px) {
+  body { overflow: auto; }
+  .app { flex-direction: column; height: auto; min-height: 100%; }
+  .stage { min-height: 80vh; }
+  .panel { width: 100%; border-left: 0; border-top: 1px solid var(--line); }
 }
 </style>
 </head>
 <body>
-<div id="app">
-  <div id="world"></div>
-  <div class="vignette"></div>
-
-  <div class="brand">
-    <div class="kick"><b>agent-mux</b> · stage</div>
-    <h1><span>Claude Code ⇄</span><b>E-Ink remote</b></h1>
-    <p>The device runs the real CrossPoint firmware compiled to WebAssembly. <span id="modeLine">The laptop replays a real Claude Code session; answer its permission prompt on the e-ink screen.</span></p>
-  </div>
-
-  <div class="top-right">
-    <span class="pill card" id="termPill" hidden><span class="dot" id="termDot"></span><span id="termText">terminal</span></span>
-    <span class="pill card" id="devPill"><span class="dot" id="devDot"></span><span id="devText">device</span></span>
-    <button class="btn card" id="viewAll" title="Overview (O)">Overview</button>
-    <button class="btn card" id="viewLaptop" title="Focus the laptop (L)">Laptop</button>
-    <button class="btn card" id="viewDevice" title="Focus the device (F)">Device</button>
-    <button class="btn card" id="viewPixel" title="Face the e-ink screen at 1:1 — one framebuffer pixel per screen pixel (X)">1:1</button>
-    <button class="btn card" id="viewActual" title="Show the raw 480×800 framebuffer at actual pixels">Actual pixels</button>
-    <a class="btn card" href="dev.html" title="The flat simulator page with logs and settings">Flat sim</a>
-  </div>
-
-  <div class="dock">
-    <div class="cap card" id="cap">
-      <div class="no" id="capNo">loading</div>
-      <div class="tx" id="capTx">Starting the firmware…</div>
-      <div class="act" id="capAct" hidden></div>
+<div class="app" id="app">
+  <main class="stage">
+    <div class="toolbar">
+      <div class="seg" role="group" aria-label="Zoom" id="zoom">
+        <button type="button" data-zoom="fit" title="Largest whole-number scale that fits (Z cycles)">Fit</button>
+        <button type="button" data-zoom="1" title="One framebuffer pixel per display pixel (≈ real size on Retina)">1:1</button>
+        <button type="button" data-zoom="2" title="One framebuffer pixel = 2×2 display pixels">2×</button>
+        <button type="button" data-zoom="4" title="One framebuffer pixel = 4×4 display pixels (inspect)">4×</button>
+      </div>
+      <span class="readout" id="readout"></span>
+      <span class="spacer"></span>
+      <button type="button" class="tbtn" id="panelToggle" aria-controls="panel" title="Show or hide the side panel">Panel</button>
     </div>
-    <div class="bar card" id="bar">
-      <button class="btn pri" id="play" title="Play / pause (Space)"><svg viewBox="0 0 12 12" id="playIcon"><path d="M2 1l9 5-9 5z"/></svg><span id="playText">Pause</span></button>
-      <button class="btn" id="restart" title="Restart (R)"><svg viewBox="0 0 12 12"><path d="M6 1a5 5 0 1 1-4.6 3h1.7A3.5 3.5 0 1 0 6 2.5V4L3 2l3-2z"/></svg>Restart</button>
-      <button class="btn" id="speed" title="Playback speed">1×</button>
-      <span class="sep"></span>
-      <div class="prog" id="prog"><i id="progFill"></i><b id="progPerm" hidden></b></div>
-      <span class="time" id="time">0:00 / 0:52</span>
+    <div class="scroller" id="scroller">
+      <div class="holder">
+        <div class="device" id="device" aria-label="Simulated Metalio E-Ink 4">
+          <div class="body"><div class="bezel"></div></div>
+          <div class="window"></div>
+          <canvas id="screen" width="480" height="800" aria-label="E-ink screen: click to tap, hold for a long press, drag to swipe"></canvas>
+          <div class="loading" id="loading">Loading firmware…</div>
+          <div class="home-ring"></div>
+          <button type="button" class="key home" data-btn="home" data-key="7" title="HOME (H)" aria-label="Home"></button>
+          <button type="button" class="key pill l" data-btn="pillL" data-key="5" title="Left pill: cover key, BTN_DOWN" aria-label="Left pill"></button>
+          <button type="button" class="key pill r" data-btn="pillR" data-key="4" title="Right pill: cover key, BTN_UP" aria-label="Right pill"></button>
+          <button type="button" class="key side boot" data-btn="boot" data-key="1" title="BOOT = Confirm (Enter)" aria-label="Boot / Confirm"></button>
+          <button type="button" class="key side volUp" data-btn="volUp" data-key="4" title="Volume + = Up (↑)" aria-label="Volume up"></button>
+          <button type="button" class="key side volDown" data-btn="volDown" data-key="5" title="Volume − = Down (↓)" aria-label="Volume down"></button>
+          <button type="button" class="key side power" data-btn="power" data-key="6" title="POWER (P): tap = power, hold ≥ 450 ms = sleep" aria-label="Power"></button>
+        </div>
+        <div class="hint">Click the screen to tap, hold for a long press, drag to swipe.
+          <kbd>Enter</kbd> BOOT · <kbd>↑</kbd><kbd>↓</kbd> volume · <kbd>←</kbd><kbd>→</kbd> front · <kbd>Esc</kbd> back · <kbd>H</kbd> home · <kbd>P</kbd> power · <kbd>Z</kbd> zoom</div>
+      </div>
     </div>
-  </div>
+  </main>
 
-  <div class="keys">device keys: <kbd>Enter</kbd> BOOT · <kbd>↑</kbd><kbd>↓</kbd> volume · <kbd>←</kbd><kbd>→</kbd> front · <kbd>Esc</kbd> back · <kbd>H</kbd> home · <kbd>P</kbd> power<br>stage: <kbd>Space</kbd> play · <kbd>R</kbd> restart · <kbd>O</kbd>/<kbd>L</kbd>/<kbd>F</kbd> camera</div>
+  <aside class="panel" id="panel">
+    <section>
+      <h1>CrossPoint simulator</h1>
+      <div class="meta">
+        <span>Agent Mux · build <code id="build">__SIM_BUILD__</code></span>
+        <span class="status" id="devStatus" hidden title="Served by sim/dev.sh: rebuilds and reloads on save"><span class="dot" id="devDot"></span><span id="devText">auto-reload</span></span>
+      </div>
+    </section>
 
-  <div class="livebox card" id="livebox" hidden>
-    <h2>Connect to your bridge</h2>
-    <p>Live mode streams a real session from <code>agentmux daemon</code>: the laptop shows <code>/term</code>, the simulated device connects to <code>/device</code>.</p>
-    <label for="lbBridge">Bridge</label><input id="lbBridge" spellcheck="false" placeholder="ws://127.0.0.1:7878">
-    <label for="lbToken">Pairing token (agentmux token)</label><input id="lbToken" spellcheck="false" autocomplete="off">
-    <label for="lbSid">Session (empty = first)</label><input id="lbSid" spellcheck="false" placeholder="s1">
-    <div style="display:flex;gap:8px;justify-content:flex-end"><a class="btn" href="./">Demo instead</a><button class="btn pri" id="lbGo">Connect</button></div>
-  </div>
+    <section>
+      <h2>Content</h2>
+      <div class="seg wide" role="group" aria-label="Content source" id="source">
+        <button type="button" data-source="demo" title="In-page bridge with three scripted sessions">Demo</button>
+        <button type="button" data-source="replay" title="A real recorded Claude Code session">Replay</button>
+        <button type="button" data-source="live" title="Your agentmux daemon">Live</button>
+      </div>
 
-  <div class="card" id="toast"></div>
-  <div id="loading"><div class="ld"><div class="cube"><i></i></div>booting the e-ink firmware…</div></div>
+      <div id="srcDemo" hidden>
+        <p class="note">An in-page bridge: Claude blocked on a Bash permission prompt, Codex building, an idle Claude. Any token but <code>bad</code> is accepted.</p>
+      </div>
+
+      <div id="srcReplay" hidden>
+        <div class="row">
+          <button type="button" class="btn pri" id="rpPlay">Pause</button>
+          <button type="button" class="btn" id="rpRestart">Restart</button>
+          <button type="button" class="btn" id="rpSpeed" title="Playback speed">1×</button>
+          <button type="button" class="btn" id="rpSkip" title="Jump to the permission prompt">To prompt</button>
+        </div>
+        <div class="row"><div class="prog"><i id="rpFill"></i><b id="rpPerm" hidden></b></div><span class="time" id="rpTime">0:00</span></div>
+        <div class="caption" id="rpCaption">Loading the recording…</div>
+        <details id="rpTermBox" style="margin-top:8px"><summary>Terminal (recording)</summary><div id="rpTerm"></div></details>
+      </div>
+
+      <div id="srcLive" hidden>
+        <label class="f" for="liveBridge">Bridge</label>
+        <input type="text" id="liveBridge" spellcheck="false" autocomplete="off" placeholder="ws://127.0.0.1:7878">
+        <label class="f" for="liveToken">Pairing token (<code>agentmux token</code>)</label>
+        <input type="text" id="liveToken" spellcheck="false" autocomplete="off">
+        <div class="row"><button type="button" class="btn pri" id="liveGo">Connect</button></div>
+        <p class="note">The device connects to <code>/device</code>. Served by <code>agentmux daemon --web sim/dist</code>, the bridge defaults to this page's host.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Device</h2>
+      <div class="status"><span class="dot" id="linkDot"></span><span id="linkText">starting…</span></div>
+      <label class="check"><input type="checkbox" id="seed"> Skip first-run setup (pre-write the bridge config)</label>
+      <div class="row">
+        <button type="button" class="btn" id="restartApp" title="Re-enter the Agent Mux start screen">Restart app</button>
+        <button type="button" class="btn" id="reset" title="Wipe the simulated SD card and reload">Reset storage</button>
+        <button type="button" class="btn" id="back" title="Back (Esc): virtual on the Metalio">Back</button>
+        <button type="button" class="btn" id="copyPng" title="Copy the 480×800 framebuffer as PNG">Copy PNG</button>
+      </div>
+    </section>
+
+    <section>
+      <details id="logBox">
+        <summary>Log · frames + firmware</summary>
+        <div class="row">
+          <label class="check" style="margin:0"><input type="checkbox" id="showFw" checked> firmware</label>
+          <label class="check" style="margin:0"><input type="checkbox" id="showFrames" checked> frames</label>
+          <span class="spacer"></span>
+          <button type="button" class="btn" id="clearLog">Clear</button>
+        </div>
+        <div id="log" role="log" aria-live="off"></div>
+      </details>
+    </section>
+
+    <section>
+      <details>
+        <summary>Keys</summary>
+        <table class="keys" style="margin-top:8px">
+          <tr><td>BOOT · <kbd>Enter</kbd></td><td>Confirm / open</td></tr>
+          <tr><td>Volume ± · <kbd>↑</kbd><kbd>↓</kbd></td><td>Up / Down</td></tr>
+          <tr><td>Grey pills</td><td>Left = BTN_DOWN, right = BTN_UP</td></tr>
+          <tr><td><kbd>←</kbd><kbd>→</kbd></td><td>Front Left / Right (session: Esc / Enter)</td></tr>
+          <tr><td><kbd>Esc</kbd> <kbd>⌫</kbd></td><td>Back (virtual; on the device the header arrow)</td></tr>
+          <tr><td>HOME · <kbd>H</kbd></td><td>Tap after 350 ms; hold 1 s = long</td></tr>
+          <tr><td>POWER · <kbd>P</kbd></td><td>Tap = power; hold ≥ 450 ms = sleep</td></tr>
+          <tr><td>Screen</td><td>Click = tap, hold 600 ms = long press, drag = swipe</td></tr>
+        </table>
+      </details>
+    </section>
+
+    <div class="foot"><a href="stage.html">3D stage</a><a href="https://github.com/chenhunghan/crosspoint-reader/tree/agentmux/sim">sim/README</a></div>
+  </aside>
 </div>
 <script src="sim.js"></script>
-<script type="module" src="stage/stage.js"></script>
-<div id="actualPixels" hidden>
-  <div class="ap-head">Actual pixels · 480×800 framebuffer, 1:1 <button class="ap-x" onclick="document.getElementById('viewActual').click()">×</button></div>
-  <div class="ap-body"></div>
-</div>
-<style>
-#actualPixels{position:fixed;right:16px;top:120px;z-index:30;background:#1b1d24;border:1px solid #333847;border-radius:10px;padding:8px;box-shadow:0 10px 40px #0008}
-#actualPixels .ap-head{font:12px/1.4 ui-monospace,monospace;color:#9aa3b5;margin:0 2px 6px;display:flex;justify-content:space-between;gap:12px}
-#actualPixels .ap-x{background:none;border:0;color:#9aa3b5;font-size:16px;cursor:pointer}
-#actualPixels canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
-</style>
+<script type="module" src="app.js"></script>
 </body>
 </html>

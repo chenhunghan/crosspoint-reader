@@ -277,6 +277,19 @@ export class Replay {
     return true;
   }
 
+  // Fast-forwards to `t` seconds, skipping timed holds. Stops at an unanswered
+  // permission prompt unless `answer` (an option key) is given.
+  seek(t, answer = null) {
+    for (let guard = 0; guard < 100; guard++) {
+      this.applyUntil(t);
+      if (this.hold === 'input') { this.hold = null; this.holdLeft = 0; continue; }
+      if (this.hold === 'perm' && answer && this.decide(this.perm.req, answer)) continue;
+      break;
+    }
+    const ev = this.cast.events[this.idx];
+    this.t = this.hold && ev ? ev.t : Math.max(this.t, Math.min(t, this.duration));
+  }
+
   // Lets playback past the prompt without the device (Play while held).
   release() {
     if (this.hold === 'input') { this.hold = null; this.holdLeft = 0; }
