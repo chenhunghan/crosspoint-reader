@@ -67,6 +67,8 @@ export function buildDevice(screenCanvas) {
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = 8;
   tex.minFilter = THREE.LinearMipmapLinearFilter;
+  // E-ink is a hard pixel grid: magnify with nearest-neighbour, not blur.
+  tex.magFilter = THREE.NearestFilter;
   const screenMat = new THREE.MeshBasicMaterial({map: tex, toneMapped: false});
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(SCR_W, SCR_H), screenMat);
   screen.position.set(0, SCR_Y, FRONT + 0.014);

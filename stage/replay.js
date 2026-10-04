@@ -29,6 +29,7 @@ put('→⟶⇢', '->');
 put('←⟵⇠', '<-');
 put('↑', '^'); put('↓', 'v'); put('⇒', '=>'); put('↵⏎', "<-'"); put('↳', 'L>');
 put('✓✔☑', 'v'); put('✗✘✕✖☒', 'x'); put('…', '...'); put('⚠', '!');
+put('◐◑◒◓◔◕', 'o'); put('⏸', '||'); put('⏹', '[]');
 put('   \t', ' ');
 
 function mapLine(line) {
@@ -40,6 +41,12 @@ function mapLine(line) {
     if (u >= 0x2800 && u <= 0x28ff) out += '*';
     else if (u >= 0x2500 && u <= 0x257f) out += '+';
     else if (u >= 0x2580 && u <= 0x259f) out += '#';
+    // Symbol blocks the device font lacks (arrows, misc technical, shapes,
+    // dingbats, emoji); same ranges as bridge/src/render.rs.
+    else if ((u >= 0x2190 && u <= 0x21ff) || (u >= 0x2300 && u <= 0x23ff) || (u >= 0x25a0 && u <= 0x27bf) ||
+             (u >= 0x27f0 && u <= 0x27ff) || (u >= 0x2900 && u <= 0x297f) || (u >= 0x2b00 && u <= 0x2bff) ||
+             (u >= 0x1f300 && u <= 0x1faff)) out += '*';
+    else if ((u >= 0xfe00 && u <= 0xfe0f) || u === 0x200d) continue;
     else if (u < 0x20 || u === 0x7f) continue;
     else out += c;
   }
@@ -55,13 +62,33 @@ function charWidth(c) {
   return 1;
 }
 
+// A mapped line made only of dashes (>= 8): a horizontal rule.
+function isDashRule(line) {
+  const t = line.trim();
+  return t.length >= 8 && /^-+$/.test(t);
+}
+
 function wrapLine(line, cols) {
   cols = Math.max(2, cols);
+  if (isDashRule(line)) return ['-'.repeat(cols)];  // one line, never wrapped
   const out = [];
   let cur = '', w = 0;
   for (const c of line) {
     const cw = charWidth(c);
-    if (w + cw > cols) { out.push(cur.trimEnd()); cur = ''; w = 0; }
+    if (w + cw > cols) {
+      // Break after the last space in the second half of the line (as the
+      // bridge does); hard-break long tokens.
+      const i = cur.lastIndexOf(' ');
+      const strWidth = (t) => [...t].reduce((a, ch) => a + charWidth(ch), 0);
+      if (i > 0 && strWidth(cur.slice(0, i)) * 2 >= cols) {
+        out.push(cur.slice(0, i).trimEnd());
+        cur = cur.slice(i + 1);
+      } else {
+        out.push(cur.trimEnd());
+        cur = '';
+      }
+      w = strWidth(cur);
+    }
     cur += c; w += cw;
   }
   cur = cur.trimEnd();
