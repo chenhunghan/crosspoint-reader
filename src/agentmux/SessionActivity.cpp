@@ -295,6 +295,17 @@ void SessionActivity::buildPermDialog(UiScreen& screen, const Perm& perm) {
   }
 }
 
+namespace {
+// A line of only '-' (at least 8): the bridge's encoding of a horizontal rule.
+bool isRuleLine(const char* line) {
+  int n = 0;
+  for (; line[n] != '\0'; ++n) {
+    if (line[n] != '-') return false;
+  }
+  return n >= 8;
+}
+}  // namespace
+
 void SessionActivity::drawTerminal() const {
   const ScreenBuffer& scr = bridge.model().screen;
   const int font = termFontId();
@@ -307,7 +318,13 @@ void SessionActivity::drawTerminal() const {
   const int first = scr.lineCount > fit ? scr.lineCount - fit : 0;
   int y = layout.y;
   for (int i = first; i < scr.lineCount; ++i) {
-    if (scr.lines[i][0] != '\0') renderer.drawText(font, layout.x, y, scr.lines[i]);
+    const char* line = scr.lines[i];
+    if (isRuleLine(line)) {
+      // The bridge sends a terminal's horizontal rule as a run of dashes.
+      renderer.drawLine(layout.x, y + layout.lineHeight / 2, layout.x + layout.width - 1, y + layout.lineHeight / 2);
+    } else if (line[0] != '\0') {
+      renderer.drawText(font, layout.x, y, line);
+    }
     y += layout.lineHeight;
   }
 }
