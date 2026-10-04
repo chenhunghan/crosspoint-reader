@@ -22,6 +22,10 @@ set(SDK "${REPO}/freeink-sdk/libs")
 
 # Generated inputs (I18n strings, ArduinoJson) are prepared by the build
 # scripts into SIM_GEN_DIR so the repo tree stays untouched.
+# SIM_DEV (sim/dev.sh): link the wasm without -Oz so an incremental rebuild takes
+# seconds. It only changes link flags, so toggling it never recompiles objects.
+option(SIM_DEV "Fast, larger wasm link for the dev loop" OFF)
+
 set(SIM_GEN_DIR "" CACHE PATH "Directory with generated I18n files and third-party headers")
 if(NOT SIM_GEN_DIR)
   message(FATAL_ERROR "Pass -DSIM_GEN_DIR=... (see sim/build-native.sh)")
@@ -136,8 +140,13 @@ target_compile_options(sim PRIVATE -Wno-deprecated-declarations -Wno-unused-para
 if(EMSCRIPTEN)
   set_target_properties(sim PROPERTIES OUTPUT_NAME "sim" SUFFIX ".js")
   target_compile_options(sim PRIVATE -Oz)
+  if(SIM_DEV)
+    set(SIM_LINK_OPT -O1)
+  else()
+    set(SIM_LINK_OPT -Oz)
+  endif()
   target_link_options(sim PRIVATE
-    -Oz
+    ${SIM_LINK_OPT}
     -sENVIRONMENT=web
     -sMODULARIZE=1
     -sEXPORT_NAME=createSim

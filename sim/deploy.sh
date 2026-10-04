@@ -12,6 +12,7 @@ BRANCH="${BRANCH:-gh-pages}"
 DIST="$SIM_DIR/dist"
 
 [ -f "$DIST/index.html" ] && [ -f "$DIST/sim.wasm" ] || { echo "Run sim/build-wasm.sh first" >&2; exit 1; }
+[ ! -f "$DIST/.sim-dev" ] || { echo "sim/dist is a dev-loop build; run sim/build-wasm.sh first" >&2; exit 1; }
 git -C "$REPO" remote get-url "$REMOTE" >/dev/null || { echo "No remote '$REMOTE'" >&2; exit 1; }
 
 SRC_REV="$(git -C "$REPO" rev-parse --short HEAD)"
