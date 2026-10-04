@@ -9,16 +9,47 @@ UI exactly as the firmware draws it into the 800x480 SSD1677 framebuffer.
 ```sh
 sim/build-native.sh        # host build + scripted scenario -> PNG snapshots in sim/out/
 sim/build-wasm.sh          # WebAssembly build -> sim/dist/
-python3 -m http.server -d sim/dist 8000   # open http://127.0.0.1:8000/
+python3 -m http.server -d sim/dist 8000   # open http://127.0.0.1:8000/ (3D stage) or /dev.html
 sim/deploy.sh              # publish sim/dist to gh-pages on the `fork` remote
 ```
+
+`sim/dist` holds two pages: `index.html`, the 3D stage below, and `dev.html`, the flat
+simulator page with logs and bridge settings.
+
+## 3D stage (`index.html`)
+
+A three.js scene with a laptop whose screen is a Claude Code terminal and a Metalio E-Ink 4 whose
+screen is this simulator. Click or tap the e-ink screen to touch it; click the device keys (orange
+HOME, grey pills, BOOT, volume rocker, POWER) to press them. The keyboard shortcuts are the same as
+on `dev.html`. Drag to orbit; *Overview*, *Laptop* and *Device* (`O`, `L`, `F`) move the camera.
+Plain ES modules, no build step: three.js and `@xterm/headless` load from cdn.jsdelivr.net, and the
+terminal is drawn cell by cell onto a canvas texture.
+
+- **Demo** (default): replays `web/demo/claude-demo.cast`, a real `agentmux run --record` session of
+  Claude Code 2.1.289, into the laptop terminal. An in-page replay bridge (`web/stage/replay.js`)
+  plays the bridge's side of the device protocol from the recording's markers and the terminal's
+  screen text (`ok`, `sessions`, `status`, throttled `screen`, `perm`, `perm_closed`). Playback holds
+  at the permission prompt until the device answers it; any option continues the recorded "Yes"
+  path. Replies and keys typed on the device are not sent anywhere. `?cast=URL` plays another
+  recording.
+- **Live**: `?mode=live&bridge=ws://HOST:7878&token=TOKEN[&sid=s1]`. The laptop shows the session's
+  `/term` stream and the device connects to the bridge's `/device`. Without `sid` the first session
+  from `/monitor` is used; without `bridge` the page's own host is used, so the daemon can serve it:
+
+  ```sh
+  agentmux daemon --web sim/dist      # then open http://HOST:7878/?mode=live&token=TOKEN
+  ```
+
+Both modes start the device with a fresh in-memory SD card and the Agent Mux config pre-written
+(the same mechanism as *Skip first-run setup* on `dev.html`). `window.__stage` exposes hooks for
+automation (`tapDevice(x, y)`, `press(name)`, `clientPointFor(x, y)`, `state()`, `screenText()`).
 
 Requirements: CMake 3.16+, a C++20 compiler and Python 3 for the native build. The wasm build
 also needs Emscripten. `build-wasm.sh` uses `emcc` from `PATH`, or sources `$EMSDK_ENV`, or
 `../.emsdk/emsdk_env.sh` next to this checkout. On macOS, if the Command Line Tools SDK cannot
 link ("tapi error: malformed file"), `build-native.sh` falls back to a working SDK.
 
-## Using the page
+## Using the flat page (`dev.html`)
 
 - Click or tap the screen to touch. Drags become swipes.
 - Device keys sit around the screen like on the Metalio: orange HOME, the two grey pills
@@ -55,7 +86,8 @@ firmware sources (unchanged)            sim/
                                                    SimArduino, SimLinkStubs
                                           platform/native_*  scenario + fake bridge + PNG writer
                                           platform/wasm_main JS glue (EM_JS), rAF main loop
-                                          web/     index.html, app.js, demo-bridge.js
+                                          web/     dev.html, app.js, demo-bridge.js (flat page)
+                                                   index.html, stage/, demo/ (3D stage)
 ```
 
 - **Real code.** All of `src/agentmux/`, the activity framework, `UiListActivity`,
