@@ -5,7 +5,7 @@
 // so the stage can raycast them and animate presses.
 import * as THREE from 'three';
 import {RoundedBoxGeometry} from 'three/addons/geometries/RoundedBoxGeometry.js';
-import {KEY} from './sim-host.js';
+import {KEY} from '../core/sim-host.js';
 
 export const DEV = {w: 7.2, h: 12.5, d: 0.9, r: 0.8};
 
