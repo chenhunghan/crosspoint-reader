@@ -66,7 +66,11 @@ SessionState parseState(const char* s) {
 
 }  // namespace
 
-BridgeClient::~BridgeClient() { stop(); }
+BridgeClient::~BridgeClient() {
+  stop();
+  // ~WebSocketsClient disconnects again; keep that from calling back into us.
+  ws.onEvent(nullptr);
+}
 
 bool BridgeClient::init() {
   if (modelPtr) return true;
