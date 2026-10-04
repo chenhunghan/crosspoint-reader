@@ -1,3 +1,15 @@
+
+// Same clean-up as the bridge's detect.rs (recordings made before it existed
+// still carry Claude's "Tip:" line and dashed separators).
+const RULE_CHARS = /[─━═╌╍┄┅┈┉╭╮╰╯┌┐└┘\-▔▁]/gu;
+function isRule(line) {
+  const n = [...line].length;
+  if (n < 8) return false;
+  return (line.match(RULE_CHARS) || []).length * 10 >= n * 8;
+}
+function cleanDetail(lines) {
+  return lines.filter((l) => !isRule(l) && !l.startsWith('Tip:'));
+}
 // Demo mode: replays a real agentmux asciinema recording into the laptop's
 // terminal and plays the bridge's part of the device protocol (docs/protocol.md)
 // for the simulated e-ink device, driven by the recording's "m" markers and
@@ -268,7 +280,7 @@ export class Replay {
     return {
       t: 'perm', sid: this.session.sid, req: p.req,
       title: renderSingle(p.title || '', cols),
-      detail: renderBlock(p.detail || [], cols, 8),
+      detail: renderBlock(cleanDetail(p.detail || []), cols, 8),
       options: (p.options || []).map((o) => ({k: o.k, label: renderSingle(o.label, cols)})),
     };
   }

@@ -41,7 +41,6 @@ class SessionActivity final : public Activity, private UiAppHost {
 
   // Render-task scratch, kept off the stack.
   char headerTitle[112] = {0};
-  char permMessage[MAX_PERM_DETAIL * LINE_BYTES] = {0};
 
   static void screenTrampoline(UiScreen& screen, void* user);
   static void onBarEvent(const freeink::ui::ActionEvent& event, void* user);

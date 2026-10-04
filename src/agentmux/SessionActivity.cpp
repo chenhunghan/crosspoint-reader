@@ -247,14 +247,6 @@ void SessionActivity::buildScreen(UiScreen& screen) {
 }
 
 void SessionActivity::buildPermDialog(UiScreen& screen, const Perm& perm) {
-  size_t used = 0;
-  permMessage[0] = '\0';
-  for (int i = 0; i < perm.detailCount && used + 1 < sizeof(permMessage); ++i) {
-    const int n = snprintf(permMessage + used, sizeof(permMessage) - used, "%s%s", i ? "\n" : "", perm.detail[i]);
-    if (n < 0) break;
-    used += static_cast<size_t>(n);
-  }
-
   fui::DialogOption options[MAX_PERM_OPTIONS];
   for (int i = 0; i < perm.optionCount; ++i) {
     options[i].label = perm.options[i].label;
@@ -266,7 +258,11 @@ void SessionActivity::buildPermDialog(UiScreen& screen, const Perm& perm) {
   fui::OptionDialogProps props;
   props.title = text::PERM_CAPTION;
   props.headline = perm.title[0] ? perm.title : nullptr;
-  props.message = permMessage[0] ? permMessage : nullptr;
+  // Detail lines arrive pre-wrapped. The dialog's message slot wraps on width only
+  // (newlines are not line breaks there), so draw them one per row in the content band.
+  const fui::TextStyle detailText = screen.theme().smallText;
+  const int16_t detailLineH = screen.target().lineHeight(detailText.font);
+  props.contentHeight = static_cast<int16_t>(perm.detailCount * detailLineH);
   props.options = options;
   props.optionCount = perm.optionCount;
   props.verticalOptions = true;
@@ -275,8 +271,6 @@ void SessionActivity::buildPermDialog(UiScreen& screen, const Perm& perm) {
   props.headlineText = screen.theme().bodyText;
   props.headlineText.bold = true;
   props.headlineText.maxLines = 2;
-  props.messageText = screen.theme().smallText;
-  props.messageText.maxLines = MAX_PERM_DETAIL + 4;  // pre-wrapped lines, plus slack for font overflow
   props.buttonText = screen.theme().smallText;
   props.buttonText.maxLines = 2;
   props.inputMask = fui::InputTouch;  // physical buttons stay in loop()
@@ -293,7 +287,12 @@ void SessionActivity::buildPermDialog(UiScreen& screen, const Perm& perm) {
 
   const fui::Rect body = screen.body();
   const int16_t height = fui::optionDialogHeight(screen.target(), props, body.width);
-  fui::optionDialog(screen.frame(), fui::centeredRect(body, fui::Size{body.width, height}), props);
+  const fui::Rect content =
+      fui::optionDialog(screen.frame(), fui::centeredRect(body, fui::Size{body.width, height}), props);
+  for (int i = 0; i < perm.detailCount; ++i) {
+    const fui::Rect row{content.x, static_cast<int16_t>(content.y + i * detailLineH), content.width, detailLineH};
+    screen.target().text(row, perm.detail[i], detailText);
+  }
 }
 
 void SessionActivity::drawTerminal() const {
