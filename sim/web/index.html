@@ -128,6 +128,8 @@ a{color:var(--cyan)}
     <button class="btn card" id="viewAll" title="Overview (O)">Overview</button>
     <button class="btn card" id="viewLaptop" title="Focus the laptop (L)">Laptop</button>
     <button class="btn card" id="viewDevice" title="Focus the device (F)">Device</button>
+    <button class="btn card" id="viewPixel" title="Face the e-ink screen at 1:1 — one framebuffer pixel per screen pixel (X)">1:1</button>
+    <button class="btn card" id="viewActual" title="Show the raw 480×800 framebuffer at actual pixels">Actual pixels</button>
     <a class="btn card" href="dev.html" title="The flat simulator page with logs and settings">Flat sim</a>
   </div>
 
@@ -163,5 +165,15 @@ a{color:var(--cyan)}
 </div>
 <script src="sim.js"></script>
 <script type="module" src="stage/stage.js"></script>
+<div id="actualPixels" hidden>
+  <div class="ap-head">Actual pixels · 480×800 framebuffer, 1:1 <button class="ap-x" onclick="document.getElementById('viewActual').click()">×</button></div>
+  <div class="ap-body"></div>
+</div>
+<style>
+#actualPixels{position:fixed;right:16px;top:120px;z-index:30;background:#1b1d24;border:1px solid #333847;border-radius:10px;padding:8px;box-shadow:0 10px 40px #0008}
+#actualPixels .ap-head{font:12px/1.4 ui-monospace,monospace;color:#9aa3b5;margin:0 2px 6px;display:flex;justify-content:space-between;gap:12px}
+#actualPixels .ap-x{background:none;border:0;color:#9aa3b5;font-size:16px;cursor:pointer}
+#actualPixels canvas{display:block;image-rendering:pixelated;image-rendering:crisp-edges}
+</style>
 </body>
 </html>

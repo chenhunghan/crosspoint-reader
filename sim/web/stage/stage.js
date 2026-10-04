@@ -137,6 +137,21 @@ function fitDist(w, h, margin = 1.12) {
 }
 function viewOf(name) {
   scene.updateMatrixWorld(true);
+  if (name === 'pixel') {
+    // Straight at the e-ink screen, at the distance where its 800 framebuffer rows
+    // cover 800 device pixels (1:1). On a ~254 ppi Retina display that is also close
+    // to the Metalio's real 235 ppi size.
+    const sz = device.screenSize;
+    const c = new THREE.Vector3(0, sz.y, sz.z).applyMatrix4(device.group.matrixWorld);
+    const n = new THREE.Vector3(0, 0, 1).transformDirection(device.group.matrixWorld);
+    const v = Math.tan(THREE.MathUtils.degToRad(camera.fov / 2));
+    const cssH = host.clientHeight, dpr = window.devicePixelRatio || 1;
+    const oneToOne = (sz.h * cssH * dpr) / (2 * v * 800);
+    // Too small a window for 1:1: fit the screen instead (and say so).
+    const fit = fitDist(sz.w, sz.h, 1.04);
+    pixelExact = oneToOne >= fit;
+    return [c.clone().addScaledVector(n, Math.max(oneToOne, fit)), c];
+  }
   if (name === 'device') {
     // Aim below the centre so the caption dock does not cover the keys.
     const c = new THREE.Vector3(0, -2.2, 0).applyMatrix4(device.group.matrixWorld);
@@ -162,8 +177,10 @@ function flyTo(name, dur = 1.3) {
   const [pos, tgt] = viewOf(name);
   camTween = {t: 0, dur, p0: camera.position.clone(), t0: controls.target.clone(), pos, tgt};
   view = name;
-  for (const [id, v] of [['viewAll', 'overview'], ['viewLaptop', 'laptop'], ['viewDevice', 'device']]) $(id).classList.toggle('on', v === name);
+  for (const [id, v] of [['viewAll', 'overview'], ['viewLaptop', 'laptop'], ['viewDevice', 'device'], ['viewPixel', 'pixel']]) $(id).classList.toggle('on', v === name);
+  if (name === 'pixel' && !pixelExact) toast('Window too small for 1:1 — showing the screen as large as fits. Try “Actual pixels”.');
 }
+let pixelExact = true;
 let view = 'overview';
 controls.addEventListener('start', () => (camTween = null));
 
@@ -174,6 +191,9 @@ function resize() {
   if (w < 760) camera.setViewOffset(w, h, 0, h * 0.06, w, h);
   else camera.clearViewOffset();
   camera.updateProjectionMatrix();
+  // Follow the display's pixel ratio (it changes when the window moves between
+  // monitors) so the 1:1 view really maps framebuffer pixels to device pixels.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
   renderer.setSize(w, h, false);
   // Portrait: bring the device in front of the laptop so both fit a narrow frame.
   const portrait = camera.aspect < 0.85;
@@ -274,6 +294,7 @@ addEventListener('keydown', (ev) => {
   else if (ev.key === 'o' || ev.key === 'O') flyTo('overview');
   else if (ev.key === 'l' || ev.key === 'L') flyTo('laptop');
   else if (ev.key === 'f' || ev.key === 'F') flyTo('device');
+  else if (ev.key === 'x' || ev.key === 'X') flyTo('pixel');
 });
 addEventListener('keyup', (ev) => {
   const m = KEYMAP[ev.key];
@@ -289,6 +310,20 @@ function autoPress(name, ms = 160) {
 $('viewAll').onclick = () => flyTo('overview');
 $('viewLaptop').onclick = () => flyTo('laptop');
 $('viewDevice').onclick = () => flyTo('device');
+$('viewPixel').onclick = () => flyTo('pixel');
+// Actual pixels: the simulator's own 480x800 canvas, one framebuffer pixel per device pixel.
+$('viewActual').onclick = () => {
+  const panel = $('actualPixels');
+  const show = panel.hidden;
+  if (show) {
+    const dpr = devicePixelRatio || 1;
+    sim.canvas.style.width = `${480 / dpr}px`;
+    sim.canvas.style.height = `${800 / dpr}px`;
+    panel.querySelector('.ap-body').appendChild(sim.canvas);
+  }
+  panel.hidden = !show;
+  $('viewActual').classList.toggle('on', show);
+};
 
 // ───────────────────────────────────────────────────────────── HUD helpers
 let toastT = null;
