@@ -134,7 +134,7 @@ target_compile_definitions(sim PRIVATE ${SIM_DEFINES})
 target_compile_options(sim PRIVATE -Wno-deprecated-declarations -Wno-unused-parameter -Wno-inconsistent-missing-override -Wno-format -fno-exceptions)
 
 if(EMSCRIPTEN)
-  set_target_properties(sim OUTPUT_NAME "sim" SUFFIX ".js")
+  set_target_properties(sim PROPERTIES OUTPUT_NAME "sim" SUFFIX ".js")
   target_compile_options(sim PRIVATE -Oz)
   target_link_options(sim PRIVATE
     -Oz
@@ -146,7 +146,7 @@ if(EMSCRIPTEN)
     -sSTACK_SIZE=1048576
     -sFILESYSTEM=1
     -lidbfs.js
-    -sEXPORTED_RUNTIME_METHODS=FS,IDBFS,HEAPU8,UTF8ToString,stringToUTF8,lengthBytesUTF8,ccall,cwrap
+    -sEXPORTED_RUNTIME_METHODS=FS,IDBFS,HEAPU8,addRunDependency,removeRunDependency,UTF8ToString,stringToUTF8,lengthBytesUTF8,ccall,cwrap
     -sEXPORTED_FUNCTIONS=_main,_malloc,_free
     -sINCOMING_MODULE_JS_API=print,printErr,preRun,postRun,onRuntimeInitialized,locateFile,canvas,noInitialRun
   )
