@@ -1,5 +1,6 @@
 #!/bin/sh
-# Builds the WebAssembly simulator into sim/dist/ (index.html + sim.js + sim.wasm).
+# Builds the WebAssembly simulator into sim/dist/: sim.js + sim.wasm, the 3D stage
+# (index.html, stage/, demo/) and the flat simulator page (dev.html).
 #   sim/build-wasm.sh
 #   EMSDK_ENV=/path/to/emsdk_env.sh sim/build-wasm.sh
 # Serve with: python3 -m http.server -d sim/dist 8000
@@ -28,8 +29,10 @@ cmake --build "$BUILD" -j "$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)"
 rm -rf "$DIST"
 mkdir -p "$DIST"
 cp "$BUILD/sim.js" "$BUILD/sim.wasm" "$DIST/"
-cp "$SIM_DIR"/web/* "$DIST/"
+cp -R "$SIM_DIR"/web/. "$DIST/"
 GIT_REV="$(git -C "$SIM_DIR" rev-parse --short HEAD 2>/dev/null || echo dev)"
-sed -i.bak "s/__SIM_BUILD__/$GIT_REV/g" "$DIST/index.html" && rm -f "$DIST/index.html.bak"
+for page in index.html dev.html; do
+  sed -i.bak "s/__SIM_BUILD__/$GIT_REV/g" "$DIST/$page" && rm -f "$DIST/$page.bak"
+done
 echo "[sim] dist ready:"
 ls -l "$DIST"
