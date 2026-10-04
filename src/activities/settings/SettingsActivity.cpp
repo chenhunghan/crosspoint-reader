@@ -39,6 +39,9 @@
 #include "components/UIThemeTokens.h"
 #include "components/UiAppHelpers.h"
 #include "fontIds.h"
+#if AGENTMUX
+#include "agentmux/AgentMuxActivity.h"
+#endif
 
 namespace fui = freeink::ui;
 
@@ -110,6 +113,9 @@ void SettingsActivity::rebuildSettingsLists() {
   systemSettings.push_back(SettingInfo::Action(StrId::STR_CHECK_UPDATES, SettingAction::CheckForUpdates));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_SD_FIRMWARE_UPDATE, SettingAction::SdFirmwareUpdate));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_PLUGINS, SettingAction::Plugins));
+#if AGENTMUX
+  systemSettings.push_back(SettingInfo::Action(StrId::STR_PLUGINS, SettingAction::AgentMux));  // label: rebuildRowItems
+#endif
   systemSettings.push_back(SettingInfo::Action(StrId::STR_KEYBOARD_LAYOUTS, SettingAction::KeyboardLayouts));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_ABOUT, SettingAction::About));
   systemSettings.push_back(SettingInfo::Action(StrId::STR_LANGUAGE, SettingAction::Language));
@@ -185,6 +191,9 @@ void SettingsActivity::rebuildRowItems() {
   for (size_t i = 0; i < settings.size(); i++) {
     fui::ListItem item;
     item.label = I18N.get(settings[i].nameId);
+#if AGENTMUX
+    if (settings[i].action == SettingAction::AgentMux) item.label = agentmux::text::APP_TITLE;
+#endif
     item.actionValue = static_cast<int16_t>(i);
     rowItems_.push_back(item);
   }
@@ -447,6 +456,10 @@ void SettingsActivity::toggleCurrentSetting() {
           LOG_ERR("SETTINGS", "OOM: AboutActivity");
         }
         break;
+#if AGENTMUX
+      case SettingAction::AgentMux:
+        return agentmux::openFromSettings(*this, renderer, mappedInput);
+#endif
       case SettingAction::None:
         // Do nothing
         break;

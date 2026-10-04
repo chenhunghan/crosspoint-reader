@@ -30,6 +30,9 @@ enum class SettingAction {
   KeyboardLayouts,
   HomeButton,
   About,
+#if AGENTMUX
+  AgentMux,
+#endif
 };
 
 struct SettingInfo {
