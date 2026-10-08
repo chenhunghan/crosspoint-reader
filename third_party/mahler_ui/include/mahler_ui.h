@@ -13,11 +13,12 @@ extern "C" {
 
 typedef struct MahlerUi MahlerUi;
 
-enum { MAHLER_KEY_BACK = 0, MAHLER_KEY_OK = 1, MAHLER_KEY_UP = 2, MAHLER_KEY_DOWN = 3 };
+enum { MAHLER_KEY_BACK = 0, MAHLER_KEY_OK = 1, MAHLER_KEY_UP = 2, MAHLER_KEY_DOWN = 3, MAHLER_KEY_SCOPE = 4 };
 enum { MAHLER_EFFECT_NONE = 0, MAHLER_EFFECT_REDRAW = 1, MAHLER_EFFECT_ACT = 2, MAHLER_EFFECT_REPORT = 3 };
 
 // What a key or a tap asks of the host: redraw, run `action` ("stop", "ack",
-// "reclaim") on run `name` through the bridge, or fetch `name`'s report.
+// "reclaim") on run `name` through the bridge ("stop-master", "ack-master" on
+// every run of master session `name`), or fetch `name`'s report.
 typedef struct {
   uint8_t kind;
   char name[160];
