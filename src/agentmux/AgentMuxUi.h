@@ -12,6 +12,8 @@ namespace agentmux {
 namespace text {
 constexpr const char* APP_TITLE = "Agent Mux";
 constexpr const char* SETTINGS_ROW = "Bridge settings...";
+constexpr const char* PANEL_ROW = "Mahler screen";
+constexpr const char* PANEL_SUBTITLE = "Your sub-agents, live; hold Back to return";
 constexpr const char* SEARCHING = "Looking for an agentmux bridge on this network...";
 constexpr const char* FOUND_PREFIX = "Found bridge: ";
 constexpr const char* ENTER_HOST = "Bridge host[:port] (empty = auto-discover)";

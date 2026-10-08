@@ -50,6 +50,7 @@ class WebSocketsClient {
   // Called by the transport (any time); delivered from loop().
   void transportOpened();
   void transportMessage(const char* data, size_t length);
+  void transportBinary(const uint8_t* data, size_t length);
   void transportClosed();
 
  private:

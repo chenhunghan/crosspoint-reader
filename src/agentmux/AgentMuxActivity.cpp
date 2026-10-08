@@ -15,6 +15,7 @@
 
 #include "AgentMuxConfig.h"
 #include "MappedInputManager.h"
+#include "MahlerActivity.h"
 #include "SessionActivity.h"
 #include "SilentRestart.h"
 #include "activities/network/WifiSelectionActivity.h"
@@ -55,6 +56,22 @@ void openFromSettings(Activity& parent, GfxRenderer& renderer, MappedInputManage
   }
   parent.startActivityForResult(std::move(activity), nullptr);
 }
+
+#if AGENTMUX_AUTOSTART
+void autostartOnce(ActivityManager& activities, GfxRenderer& renderer, MappedInputManager& mappedInput) {
+  static bool done = false;
+  constexpr unsigned long AFTER_BOOT_MS = 4000;
+  if (done || millis() < AFTER_BOOT_MS) return;
+  done = true;
+  auto activity = makeUniqueNoThrow<AgentMuxActivity>(renderer, mappedInput);
+  if (!activity) {
+    LOG_ERR("AMUX", "OOM: AgentMuxActivity");
+    return;
+  }
+  LOG_INF("AMUX", "autostart");
+  activities.pushActivity(std::move(activity));
+}
+#endif
 
 AgentMuxActivity::AgentMuxActivity(GfxRenderer& renderer, MappedInputManager& mappedInput)
     : UiListActivity("AgentMux", renderer, mappedInput) {}
@@ -135,9 +152,13 @@ void AgentMuxActivity::loop() {
 
   bridge->loop();
   const uint8_t dirty = bridge->consumeDirty();
-  if (dirty & BridgeClient::DIRTY_SESSIONS) {
+  if (dirty & (BridgeClient::DIRTY_SESSIONS | BridgeClient::DIRTY_RUNS)) {
     RenderLock lock(*this);
     rebuildRows();
+  }
+  if ((dirty & BridgeClient::DIRTY_RUNS) && !panelOpened) {
+    openPanel();
+    return;
   }
   if (dirty & (BridgeClient::DIRTY_SESSIONS | BridgeClient::DIRTY_LINK)) pendingRedraw = true;
   if ((dirty & BridgeClient::DIRTY_LINK) && bridge->link() == LinkState::AuthFailed) {
@@ -293,11 +314,27 @@ void AgentMuxActivity::openSession(const int index) {
   });
 }
 
+void AgentMuxActivity::openPanel() {
+  panelOpened = true;
+  auto activity = makeUniqueNoThrow<MahlerActivity>(renderer, mappedInput, *bridge);
+  if (!activity) {
+    LOG_ERR("AMUX", "OOM: MahlerActivity");
+    return;
+  }
+  startActivityForResult(std::move(activity), [this](const ActivityResult&) {
+    renderer.promoteNextRefresh(HalDisplay::HALF_REFRESH);
+    RenderLock lock(*this);
+    rebuildRows();
+  });
+}
+
 void AgentMuxActivity::activateIndex(const int index) {
   if (phase != Phase::Running || index < 0 || index >= rowCount) return;
   app.clearTapFlash();  // both targets leave this screen
   if (index == rowCount - 1) {
     editSettings();
+  } else if (hasPanelRow && index == rowCount - 2) {
+    openPanel();
   } else {
     openSession(index);
   }
@@ -336,13 +373,22 @@ void AgentMuxActivity::rebuildRows() {
     rows[i] = item;
   }
 
+  int at = count;
+  hasPanelRow = !bridge->runsFrame().empty();
+  if (hasPanelRow) {
+    fui::ListItem panel;
+    panel.label = text::PANEL_ROW;
+    panel.subtitle = text::PANEL_SUBTITLE;
+    panel.actionValue = static_cast<int16_t>(at);
+    rows[at++] = panel;
+  }
   fui::ListItem settings;
   settings.label = text::SETTINGS_ROW;
   settings.subtitle = settingsSubtitle[0] ? settingsSubtitle : nullptr;
-  settings.actionValue = static_cast<int16_t>(count);
-  if (count == 0) settings.sectionHeading = text::NO_SESSIONS;
-  rows[count] = settings;
-  rowCount = count + 1;
+  settings.actionValue = static_cast<int16_t>(at);
+  if (count == 0 && !hasPanelRow) settings.sectionHeading = text::NO_SESSIONS;
+  rows[at] = settings;
+  rowCount = at + 1;
   if (nav.selected >= rowCount) nav.selected = rowCount - 1;
 }
 

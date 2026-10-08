@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <string>
 
 namespace agentmux {
 
@@ -29,6 +30,7 @@ constexpr int LINE_BYTES = 160;
 constexpr int MAX_PERM_DETAIL = 8;
 constexpr int MAX_PERM_OPTIONS = 6;
 constexpr int ID_BYTES = 24;
+
 
 struct Session {
   char sid[ID_BYTES];
@@ -85,6 +87,8 @@ class BridgeClient {
     DIRTY_SESSIONS = 1 << 1,
     DIRTY_SCREEN = 1 << 2,
     DIRTY_PERM = 1 << 3,
+    DIRTY_RUNS = 1 << 4,    // the run records, an action's answer
+    DIRTY_REPORT = 1 << 5,  // a requested report arrived
   };
 
   BridgeClient() = default;
@@ -112,6 +116,20 @@ class BridgeClient {
   bool sendInput(const char* sid, const char* text, bool submit);
   bool sendKey(const char* sid, const char* key);
 
+  // The mahler run records the bridge serves (docs/protocol.md, "Runs"): the
+  // last `runs` frame as it came, "" until the first; the mahler screen
+  // (third_party/mahler_ui) reads it. `runsAgeMs` is how long ago it came.
+  const std::string& runsFrame() const { return runsJson; }
+  unsigned long runsAgeMs() const { return millis() - runsAtMs; }
+  // Stop, mark read or reclaim a run; the answer comes as lastAct().
+  bool sendAct(const char* name, const char* action);
+  // Asks for a run's report; it comes as reportText() with DIRTY_REPORT.
+  bool requestReport(const char* name);
+  const std::string& lastAct() const { return actMessage; }
+  bool lastActOk() const { return actOk; }
+  const std::string& reportName() const { return reportFor; }
+  const std::string& reportText() const { return reportBody; }
+
   const Session* findSession(const char* sid) const;
   const Perm* findPerm(const char* sid) const;
 
@@ -121,6 +139,12 @@ class BridgeClient {
  private:
   WebSocketsClient ws;
   HalMemory::PsramBuffer modelPsram;
+  std::string runsJson;
+  unsigned long runsAtMs = 0;
+  std::string actMessage;
+  bool actOk = true;
+  std::string reportFor;
+  std::string reportBody;
   std::unique_ptr<Model> modelInternal;
   Model* modelPtr = nullptr;
 

@@ -15,12 +15,18 @@ uint8_t frameBuffer[HalDisplay::BUFFER_SIZE];
 uint8_t glass[HalDisplay::BUFFER_SIZE];
 uint8_t grayLsb[HalDisplay::BUFFER_SIZE];
 uint8_t grayMsb[HalDisplay::BUFFER_SIZE];
+// Set by displayGrayBuffer: the glass shows the gray planes (absolute
+// encoding) until the next black-and-white refresh.
+uint8_t grayGlassLsb[HalDisplay::BUFFER_SIZE];
+uint8_t grayGlassMsb[HalDisplay::BUFFER_SIZE];
+bool glassIsGray = false;
 bool lent = false;
 bool inverted = false;
 uint32_t frames = 0;
 int lastMode = HalDisplay::FULL_REFRESH;
 
 void present(const int mode) {
+  glassIsGray = false;
   memcpy(glass, frameBuffer, sizeof(glass));
   if (inverted) {
     for (auto& b : glass) b = static_cast<uint8_t>(~b);
@@ -35,21 +41,25 @@ namespace sim {
 uint32_t frameCount() { return frames; }
 int lastRefreshMode() { return lastMode; }
 
-bool inkAt(const int x, const int y) {
+bool inkAt(const int x, const int y) { return levelAt(x, y) == 0; }
+
+int levelAt(const int x, const int y) {
   // Inverse of GfxRenderer's Portrait rotateCoordinates: phyX = y, phyY = H-1-x.
   const int phyX = y;
   const int phyY = PANEL_H - 1 - x;
-  const uint8_t byte = glass[phyY * (PANEL_W / 8) + (phyX >> 3)];
-  return (byte & (0x80 >> (phyX & 7))) == 0;
+  const int i = phyY * (PANEL_W / 8) + (phyX >> 3);
+  const uint8_t bit = 0x80 >> (phyX & 7);
+  // Absolute planes, (LSB, MSB): black 00, dark 10, light 01, white 11.
+  if (glassIsGray) return ((grayGlassLsb[i] & bit) ? 1 : 0) + ((grayGlassMsb[i] & bit) ? 2 : 0);
+  return (glass[i] & bit) ? 3 : 0;
 }
 
 void renderPortraitRgba(uint8_t* out) {
-  // Paper and ink tones of an SSD1677 panel under room light.
-  static constexpr uint8_t PAPER[3] = {0xE9, 0xE6, 0xDD};
-  static constexpr uint8_t INK[3] = {0x26, 0x26, 0x2A};
+  // Ink, the two grays and paper of an SSD1677 panel under room light.
+  static constexpr uint8_t TONE[4][3] = {{0x26, 0x26, 0x2A}, {0x70, 0x70, 0x6C}, {0xB0, 0xAF, 0xAA}, {0xE9, 0xE6, 0xDD}};
   for (int y = 0; y < UI_H; ++y) {
     for (int x = 0; x < UI_W; ++x) {
-      const uint8_t* c = inkAt(x, y) ? INK : PAPER;
+      const uint8_t* c = TONE[levelAt(x, y)];
       out[0] = c[0];
       out[1] = c[1];
       out[2] = c[2];
@@ -67,7 +77,13 @@ HalDisplay::HalDisplay() {
 HalDisplay::~HalDisplay() = default;
 
 HalDisplay::Controller HalDisplay::getController() const { return BoardConfig::ACTIVE.displayController; }
-HalDisplay::GrayscaleCapabilities HalDisplay::grayscaleCapabilities(GrayscaleMode) const { return {}; }
+// Absolute four-level grayscale, as the Metalio's SSD1677 offers it; overlay
+// grayscale stays unsupported, so readers keep their black-and-white path.
+HalDisplay::GrayscaleCapabilities HalDisplay::grayscaleCapabilities(GrayscaleMode mode) const {
+  GrayscaleCapabilities caps;
+  if (mode == GrayscaleMode::Absolute && !inverted) caps.encoding = GrayscaleEncoding::AbsolutePlanes;
+  return caps;
+}
 
 void HalDisplay::begin(bool) {}
 void HalDisplay::clearScreen(const uint8_t color) const { memset(frameBuffer, color, sizeof(frameBuffer)); }
@@ -121,9 +137,9 @@ void HalDisplay::returnFrameBufferStorage() {
 void HalDisplay::preconditionGrayscale() {}
 void HalDisplay::preconditionGrayscale(uint16_t, uint16_t, uint16_t, uint16_t) {}
 void HalDisplay::displayGrayscaleBase(const RefreshMode fallback, bool) { present(fallback); }
-bool HalDisplay::displayGrayscaleBase(GrayscaleMode, const RefreshMode fallback, bool) {
+bool HalDisplay::displayGrayscaleBase(GrayscaleMode mode, const RefreshMode fallback, bool) {
   present(fallback);
-  return false;
+  return mode == GrayscaleMode::Absolute && !inverted;
 }
 void HalDisplay::copyGrayscaleBuffers(const uint8_t* lsb, const uint8_t* msb) {
   memcpy(grayLsb, lsb, sizeof(grayLsb));
@@ -132,7 +148,14 @@ void HalDisplay::copyGrayscaleBuffers(const uint8_t* lsb, const uint8_t* msb) {
 void HalDisplay::copyGrayscaleLsbBuffers(const uint8_t* lsb) { memcpy(grayLsb, lsb, sizeof(grayLsb)); }
 void HalDisplay::copyGrayscaleMsbBuffers(const uint8_t* msb) { memcpy(grayMsb, msb, sizeof(grayMsb)); }
 void HalDisplay::cleanupGrayscaleBuffers(const uint8_t*) {}
-void HalDisplay::displayGrayBuffer(bool) {}
+void HalDisplay::displayGrayBuffer(bool) {
+  memcpy(grayGlassLsb, grayLsb, sizeof(grayGlassLsb));
+  memcpy(grayGlassMsb, grayMsb, sizeof(grayGlassMsb));
+  glassIsGray = true;
+  ++frames;
+  lastMode = HALF_REFRESH;
+  sim::hostFramePresented(lastMode);
+}
 void HalDisplay::writeGrayscalePlaneStrip(bool, const uint8_t*, uint16_t, uint16_t) {}
 bool HalDisplay::supportsStripGrayscale() const { return false; }
 bool HalDisplay::combinesGrayscaleBase() const { return false; }

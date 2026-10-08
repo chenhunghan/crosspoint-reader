@@ -35,6 +35,10 @@ class AgentMuxActivity final : public UiListActivity {
   bool editHost = false;
   bool editToken = false;
   bool pendingRedraw = false;
+  // The mahler screen opens by itself once, when the first run records
+  // arrive; after the person leaves it, the "Mahler screen" row reopens it.
+  bool panelOpened = false;
+  bool hasPanelRow = false;
   std::atomic<unsigned long> lastRenderMs{0};
   TermLayout layout{};
 
@@ -43,7 +47,7 @@ class AgentMuxActivity final : public UiListActivity {
   char tokenTitle[64] = {0};  // keyboard title (mentions a rejected token)
 
   // Row cache, rebuilt on sessions frames (loop task, under the render lock).
-  static constexpr int MAX_ROWS = MAX_SESSIONS + 1;  // + settings row
+  static constexpr int MAX_ROWS = MAX_SESSIONS + 2;  // + panel row + settings row
   int rowCount = 0;
   freeink::ui::ListItem rows[MAX_ROWS]{};
   char rowLabels[MAX_SESSIONS][40] = {};
@@ -66,12 +70,20 @@ class AgentMuxActivity final : public UiListActivity {
   void startBridge();
   void editSettings();
   void openSession(int index);
+  void openPanel();
   void rebuildRows();
   void setStatus(const char* message);
 };
 
 // Settings -> System -> "Agent Mux" launch hook (SettingsActivity.cpp).
 void openFromSettings(Activity& parent, GfxRenderer& renderer, MappedInputManager& mappedInput);
+
+#if AGENTMUX_AUTOSTART
+// Dev builds (env metalio_eink4_agentmux_dev): opens Agent Mux over Home once,
+// a few seconds after boot, so the device is testable with nobody at it.
+// Called from main.cpp's loop().
+void autostartOnce(ActivityManager& activities, GfxRenderer& renderer, MappedInputManager& mappedInput);
+#endif
 
 }  // namespace agentmux
 

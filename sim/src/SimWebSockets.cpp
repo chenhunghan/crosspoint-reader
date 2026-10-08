@@ -55,6 +55,10 @@ void WebSocketsClient::transportMessage(const char* data, const size_t length) {
   events.push_back({WStype_TEXT, std::string(data, length)});
 }
 
+void WebSocketsClient::transportBinary(const uint8_t* data, const size_t length) {
+  events.push_back({WStype_BIN, std::string(reinterpret_cast<const char*>(data), length)});
+}
+
 void WebSocketsClient::transportClosed() {
   socketId = -1;
   events.push_back({WStype_DISCONNECTED, std::string()});

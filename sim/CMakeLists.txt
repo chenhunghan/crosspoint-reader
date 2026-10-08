@@ -37,6 +37,7 @@ set(REAL_SOURCES
   ${REPO}/src/agentmux/AgentMuxConfig.cpp
   ${REPO}/src/agentmux/AgentMuxUi.cpp
   ${REPO}/src/agentmux/BridgeClient.cpp
+  ${REPO}/src/agentmux/MahlerActivity.cpp
   ${REPO}/src/agentmux/SessionActivity.cpp
   # Activity framework + shared screens
   ${REPO}/src/activities/Activity.cpp
@@ -133,7 +134,14 @@ else()
 endif()
 add_executable(sim ${REAL_SOURCES} ${SIM_SOURCES} ${PLATFORM_SOURCES})
 
-target_include_directories(sim PRIVATE ${SIM_INCLUDES})
+target_include_directories(sim PRIVATE ${SIM_INCLUDES} ${REPO}/third_party/mahler_ui/include)
+# The mahler screen: the Rust library the device links (ui-ffi/build.sh puts
+# its builds here), for this host or for the browser.
+if(EMSCRIPTEN)
+  target_link_libraries(sim PRIVATE ${REPO}/third_party/mahler_ui/wasm/libmahler_ui.a)
+else()
+  target_link_libraries(sim PRIVATE ${REPO}/third_party/mahler_ui/host/libmahler_ui.a)
+endif()
 target_compile_definitions(sim PRIVATE ${SIM_DEFINES})
 target_compile_options(sim PRIVATE -Wno-deprecated-declarations -Wno-unused-parameter -Wno-inconsistent-missing-override -Wno-format -fno-exceptions)
 

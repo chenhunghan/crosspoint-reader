@@ -78,6 +78,7 @@ void KOReaderCredentialStore::toJson(JsonDocument&) const {}
 void KOReaderCredentialStore::setCredentials(const std::string&, const std::string&) {}
 void KOReaderCredentialStore::setServerUrl(const std::string&) {}
 void KOReaderCredentialStore::setMatchMethod(DocumentMatchMethod) {}
+void KOReaderCredentialStore::setServerType(KOReaderServerType type) { serverType = type; }
 void KOReaderCredentialStore::setSendMetadata(bool) {}
 void KOReaderCredentialStore::setSyncBehavior(KOReaderSyncBehavior) {}
 

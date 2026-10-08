@@ -164,7 +164,18 @@ export class SimHost {
       o.onLink && o.onLink('ok', 'connected');
       this.Module._sim_ws_opened(id);
     };
+    if ('binaryType' in ws) ws.binaryType = 'arraybuffer';
     ws.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) {
+        // A panel frame's pixels (docs/protocol.md, "Panel"), in chunks.
+        const M = this.Module;
+        const bytes = new Uint8Array(ev.data);
+        const ptr = M._malloc(bytes.length);
+        M.HEAPU8.set(bytes, ptr);
+        M._sim_ws_binary(id, ptr, bytes.length);
+        M._free(ptr);
+        return;
+      }
       if (typeof ev.data !== 'string') return;
       o.onFrame && o.onFrame('rx', ev.data);
       const M = this.Module;

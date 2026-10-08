@@ -17,4 +17,7 @@ int lastRefreshMode();
 void renderPortraitRgba(uint8_t* out);
 // 1 = ink at portrait UI pixel (x, y).
 bool inkAt(int x, int y);
+// The gray level shown at a portrait pixel: 0 ink, 1 dark, 2 light, 3 paper.
+// After a black-and-white refresh only 0 and 3.
+int levelAt(int x, int y);
 }  // namespace sim

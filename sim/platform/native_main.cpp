@@ -23,6 +23,9 @@
 #include "SimStorage.h"
 #include "activities/Activity.h"
 #include "native_fake_bridge.h"
+#include <ArduinoJson.h>
+#include <algorithm>
+#include <mahler_ui.h>
 
 extern ActivityManager activityManager;
 void simSetMdnsResult(const char* ip, uint16_t port, const char* hostname);
@@ -152,6 +155,100 @@ bool inkIn(const int x0, const int y0, const int x1, const int y1) {
   return false;
 }
 
+// The mahler scenario (SIM_RUNS_JSON=<a runs frame, as the bridge sends>):
+// the device's screen is the mahler_ui library; a second instance of it, fed
+// the same frame and the same keys, says what the panel must show, pixel for
+// pixel. The device keeps its own cursor and sends its actions to the bridge.
+bool showsScreen(MahlerUi* shadow, const char* what) {
+  std::vector<uint8_t> want(MAHLER_WIDTH * MAHLER_HEIGHT);
+  // The device's clock is the bridge's plus the seconds since; any of the next few will do.
+  int best = 1 << 30;
+  for (int64_t k = 0; k < 20; ++k) {
+    mahler_ui_render(shadow, mahler_ui_records_at(shadow) + k, want.data());
+    int differ = 0;
+    for (int y = 0; y < MAHLER_HEIGHT; ++y) {
+      for (int x = 0; x < MAHLER_WIDTH; ++x) differ += (sim::levelAt(x, y) == 0) != (want[y * MAHLER_WIDTH + x] <= 1);
+    }
+    best = std::min(best, differ);
+    if (differ == 0) break;
+  }
+  printf("[scenario] %s: %d pixels differ from mahler_ui\n", what, best);
+  return best == 0;
+}
+
+int mahlerScenario(const char* path) {
+  FILE* f = fopen(path, "rb");
+  if (!f) {
+    printf("[scenario] FAIL: cannot read %s\n", path);
+    return 1;
+  }
+  std::string frame;
+  char buf[4096];
+  for (size_t n; (n = fread(buf, 1, sizeof(buf), f)) > 0;) frame.append(buf, n);
+  fclose(f);
+  // Start the records on a whole minute, so the clock cannot turn mid-check.
+  {
+    JsonDocument doc;
+    deserializeJson(doc, frame);
+    const int64_t at = doc["at"] | static_cast<int64_t>(0);
+    doc["at"] = at - at % 60;
+    frame.clear();
+    serializeJson(doc, frame);
+  }
+  sim::fakeBridgeSetRuns(frame.c_str());
+  MahlerUi* shadow = mahler_ui_new();
+  mahler_ui_set_runs(shadow, frame.data(), frame.size());
+  mahler_ui_set_link(shadow, true, 0, "");
+  auto both = [&](sim::Key key, uint8_t mahlerKey) {
+    press(key);
+    mahler_ui_press(shadow, mahlerKey);
+  };
+
+  simSetMdnsResult("192.168.1.20", 7878, "studio-mac");
+  expect(Storage.mkdir("/.crosspoint") &&
+             Storage.writeFile("/.crosspoint/agentmux.json",
+                               String(R"({"host":"192.168.1.20","port":7878,"token":"demo1234"})")),
+         "seed agentmux.json");
+  sim::setup();
+  run(4000);
+  snapshot("mahler-list");
+  expect(showsScreen(shadow, "the list"), "the device draws the list as mahler_ui does");
+
+  // Its own cursor: Down moves it, OK opens that run's page.
+  both(sim::Key::Down, MAHLER_KEY_DOWN);
+  run(500);
+  both(sim::Key::Confirm, MAHLER_KEY_OK);
+  run(800);
+  snapshot("mahler-detail");
+  expect(showsScreen(shadow, "a run's page"), "OK opens the run under the cursor");
+
+  // Down to Mark read, if this run offers it, and OK: the act goes to the bridge.
+  both(sim::Key::Down, MAHLER_KEY_DOWN);
+  run(300);
+  both(sim::Key::Confirm, MAHLER_KEY_OK);
+  run(500);
+  const char* sent = sim::fakeBridgeDeviceEvent(0);
+  expect(sent && (strstr(sent, "\"act\"") || strstr(sent, "\"report\"")), "an action reaches the bridge");
+  printf("[scenario] sent: %s\n", sent ? sent : "(nothing)");
+
+  // Back to the list and hold Back to leave.
+  both(sim::Key::Back, MAHLER_KEY_BACK);
+  run(600);
+  both(sim::Key::Back, MAHLER_KEY_BACK);
+  run(600);
+  snapshot("mahler-back");
+  sim::keyDown(sim::Key::Back);
+  run(900);
+  sim::keyUp(sim::Key::Back);
+  run(2500);
+  snapshot("mahler-left");
+  mahler_ui_free(shadow);
+
+  printf("[scenario] %d snapshot(s), %d failure(s)\n", snapshotCount, failures);
+  fflush(stdout);
+  _exit(failures == 0 ? 0 : 1);
+}
+
 void removeTree(const std::string& path) {
   const std::string cmd = "rm -rf '" + path + "'";
   if (system(cmd.c_str()) != 0) printf("[scenario] could not clear %s\n", path.c_str());
@@ -178,6 +275,7 @@ int main(int argc, char** argv) {
   removeTree(sd);
   sim::setStorageRoot(sd.c_str());
   sim::fakeBridgeReset();
+  if (const char* runs = getenv("SIM_RUNS_JSON")) return mahlerScenario(runs);
 
   // 1) Fresh device: mDNS finds a bridge, the app asks for the pairing token.
   simSetMdnsResult("192.168.1.20", 7878, "studio-mac");

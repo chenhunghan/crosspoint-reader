@@ -109,6 +109,9 @@ EMSCRIPTEN_KEEPALIVE void sim_ws_opened(const int id) {
 EMSCRIPTEN_KEEPALIVE void sim_ws_message(const int id, const char* data, const int len) {
   if (auto it = sockets.find(id); it != sockets.end()) it->second->transportMessage(data, static_cast<size_t>(len));
 }
+EMSCRIPTEN_KEEPALIVE void sim_ws_binary(const int id, const uint8_t* data, const int len) {
+  if (auto it = sockets.find(id); it != sockets.end()) it->second->transportBinary(data, static_cast<size_t>(len));
+}
 EMSCRIPTEN_KEEPALIVE void sim_ws_closed(const int id) {
   auto it = sockets.find(id);
   if (it == sockets.end()) return;

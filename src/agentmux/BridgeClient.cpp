@@ -231,6 +231,7 @@ void BridgeClient::sendHello() {
   doc["token"] = token;
   doc["cols"] = cols;
   doc["rows"] = rows;
+  doc["caps"].add("runs");
   sendTx(serializeJson(doc, tx, sizeof(tx)));
   LOG_INF("AMUX", "hello dev=%s cols=%u rows=%u", dev, cols, rows);
 }
@@ -296,6 +297,23 @@ bool BridgeClient::sendKey(const char* sid, const char* key) {
   doc["t"] = "keys";
   doc["sid"] = sid;
   doc["keys"].add(key);
+  return sendTx(serializeJson(doc, tx, sizeof(tx)));
+}
+
+bool BridgeClient::sendAct(const char* name, const char* action) {
+  if (linkState != LinkState::Online) return false;
+  JsonDocument doc(&jsonAllocator);
+  doc["t"] = "act";
+  doc["name"] = name;
+  doc["action"] = action;
+  return sendTx(serializeJson(doc, tx, sizeof(tx)));
+}
+
+bool BridgeClient::requestReport(const char* name) {
+  if (linkState != LinkState::Online) return false;
+  JsonDocument doc(&jsonAllocator);
+  doc["t"] = "report";
+  doc["name"] = name;
   return sendTx(serializeJson(doc, tx, sizeof(tx)));
 }
 
@@ -454,6 +472,30 @@ void BridgeClient::handleFrame(const uint8_t* payload, const size_t length) {
       LOG_ERR("AMUX", "Bridge error %s", m.lastError);
       if (strcmp(code, "auth") == 0) setLink(LinkState::AuthFailed);
       dirty |= DIRTY_LINK;
+    } else if (strcmp(t, "runs") == 0) {
+      runsJson.assign(reinterpret_cast<const char*>(payload), length);
+      runsAtMs = millis();
+      dirty |= DIRTY_RUNS;
+    } else if (strcmp(t, "act_result") == 0) {
+      actOk = doc["ok"] | false;
+      actMessage = doc["msg"] | "";
+      dirty |= DIRTY_RUNS;
+    } else if (strcmp(t, "report") == 0) {
+      // A report comes in parts (each under the WebSocket library's 15 KB),
+      // joined here; the whole is in PSRAM, as any allocation over 4 KB is.
+      const int part = doc["part"] | 0;
+      const int parts = doc["parts"] | 1;
+      if (part == 0) {
+        reportFor = doc["name"] | "";
+        reportBody.clear();
+      }
+      if (reportFor == (doc["name"] | "")) {
+        reportBody += doc["error"].is<const char*>() ? std::string(doc["error"] | "") : std::string(doc["text"] | "");
+        if (part + 1 >= parts) {
+          if (doc["truncated"] | false) reportBody += "\n\n(The report goes on; read it in full on the desktop.)";
+          dirty |= DIRTY_REPORT;
+        }
+      }
     } else if (strcmp(t, "pong") != 0) {
       LOG_DBG("AMUX", "Ignoring frame t=%s", t);
     }

@@ -22,6 +22,7 @@ struct FakeSession {
 struct Pending {
   unsigned long at;
   std::string frame;  // empty = "deliver open"
+  bool binary = false;
 };
 
 struct Conn {
@@ -37,6 +38,8 @@ int nextId = 1;
 int seq = 0;
 std::vector<FakeSession> sessions;
 std::vector<std::string> sentLog;
+std::string runsFrame;  // the runs frame for devices that ask; empty = none
+std::vector<std::string> deviceEvents;
 
 void resetSessions() {
   sessions = {
@@ -137,6 +140,9 @@ void handle(Conn& c, const std::string& text) {
     for (auto& s : sessions) {
       if (s.state == "blocked") queue(c, permFrame(s));
     }
+    bool wantsRuns = false;
+    for (const JsonVariantConst cap : doc["caps"].as<JsonArrayConst>()) wantsRuns |= std::string(cap | "") == "runs";
+    if (wantsRuns && !runsFrame.empty()) queue(c, runsFrame, 60);
   } else if (!c.authed) {
     return;
   } else if (t == "list") {
@@ -172,6 +178,16 @@ void handle(Conn& c, const std::string& text) {
       queue(c, screenFrame(*s), 50);
       broadcast(sessionsFrame(), 60);
     }
+  } else if (t == "act") {
+    deviceEvents.push_back(text);
+    queue(c, std::string(R"({"t":"act_result","name":")") + (doc["name"] | "") + R"(","action":")" +
+                 (doc["action"] | "") + R"(","ok":true,"msg":"done"})");
+  } else if (t == "report") {
+    deviceEvents.push_back(text);
+    // The report in two parts, as the bridge splits one for the WebSocket library.
+    const std::string name = doc["name"] | "";
+    queue(c, R"({"t":"report","name":")" + name + R"(","part":0,"parts":2,"text":"# Verdict\n\nAll ","truncated":false})");
+    queue(c, R"({"t":"report","name":")" + name + R"(","part":1,"parts":2,"text":"good.","truncated":false})", 30);
   } else if (t == "keys") {
     if (FakeSession* s = find(doc["sid"] | "")) {
       s->lines.push_back(std::string("[key ") + (doc["keys"][0] | "?") + "]");
@@ -186,6 +202,13 @@ namespace sim {
 void fakeBridgeReset() {
   conns.clear();
   resetSessions();
+  deviceEvents.clear();
+}
+
+void fakeBridgeSetRuns(const char* frame) { runsFrame = frame ? frame : ""; }
+
+const char* fakeBridgeDeviceEvent(const unsigned long index) {
+  return index < deviceEvents.size() ? deviceEvents[index].c_str() : nullptr;
 }
 
 void fakeBridgePump() {
@@ -197,10 +220,13 @@ void fakeBridgePump() {
         continue;
       }
       const std::string frame = c.pending[i].frame;
+      const bool binary = c.pending[i].binary;
       c.pending.erase(c.pending.begin() + static_cast<long>(i));
       if (frame.empty()) {
         c.open = true;
         c.owner->transportOpened();
+      } else if (c.open && binary) {
+        c.owner->transportBinary(reinterpret_cast<const uint8_t*>(frame.data()), frame.size());
       } else if (c.open) {
         sentLog.push_back("<- " + frame);
         c.owner->transportMessage(frame.data(), frame.size());

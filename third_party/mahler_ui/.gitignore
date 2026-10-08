@@ -1,0 +1,3 @@
+# Built per machine by ~/esp32-agent-mux/ui-ffi/build.sh (the simulator's copies).
+host/
+wasm/
