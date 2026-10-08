@@ -31,7 +31,6 @@ constexpr int MAX_PERM_DETAIL = 8;
 constexpr int MAX_PERM_OPTIONS = 6;
 constexpr int ID_BYTES = 24;
 
-
 struct Session {
   char sid[ID_BYTES];
   char agent[16];
@@ -118,7 +117,7 @@ class BridgeClient {
 
   // The mahler run records the bridge serves (docs/protocol.md, "Runs"): the
   // last `runs` frame as it came, "" until the first; the mahler screen
-  // (third_party/mahler_ui) reads it. `runsAgeMs` is how long ago it came.
+  // (mahler_ui, ../ui-ffi) reads it. `runsAgeMs` is how long ago it came.
   const std::string& runsFrame() const { return runsJson; }
   unsigned long runsAgeMs() const { return millis() - runsAtMs; }
   // Stop, mark read or reclaim a run; the answer comes as lastAct().

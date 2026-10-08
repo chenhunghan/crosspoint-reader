@@ -134,14 +134,29 @@ else()
 endif()
 add_executable(sim ${REAL_SOURCES} ${SIM_SOURCES} ${PLATFORM_SOURCES})
 
-target_include_directories(sim PRIVATE ${SIM_INCLUDES} ${REPO}/third_party/mahler_ui/include)
-# The mahler screen: the Rust library the device links (ui-ffi/build.sh puts
-# its builds here), for this host or for the browser.
-if(EMSCRIPTEN)
-  target_link_libraries(sim PRIVATE ${REPO}/third_party/mahler_ui/wasm/libmahler_ui.a)
+# The mahler screen: the Rust library the device links, ui-ffi in esp32-agent-mux
+# (the checkout this fork sits in, or MAHLER_UI_FFI), built by cargo with every
+# build for this host or for the browser.
+if(DEFINED ENV{MAHLER_UI_FFI})
+  set(UI_FFI "$ENV{MAHLER_UI_FFI}")
 else()
-  target_link_libraries(sim PRIVATE ${REPO}/third_party/mahler_ui/host/libmahler_ui.a)
+  get_filename_component(UI_FFI "${REPO}/../ui-ffi" ABSOLUTE)
 endif()
+if(EMSCRIPTEN)
+  set(UI_FFI_TARGET --target wasm32-unknown-emscripten)
+  set(UI_FFI_LIB "${UI_FFI}/target/wasm32-unknown-emscripten/release/libmahler_ui.a")
+else()
+  set(UI_FFI_TARGET "")
+  set(UI_FFI_LIB "${UI_FFI}/target/release/libmahler_ui.a")
+endif()
+add_custom_target(mahler_ui ALL
+  COMMAND cargo build --release ${UI_FFI_TARGET}
+  WORKING_DIRECTORY "${UI_FFI}"
+  BYPRODUCTS "${UI_FFI_LIB}"
+  USES_TERMINAL)
+add_dependencies(sim mahler_ui)
+target_include_directories(sim PRIVATE ${SIM_INCLUDES} "${UI_FFI}/include")
+target_link_libraries(sim PRIVATE "${UI_FFI_LIB}")
 target_compile_definitions(sim PRIVATE ${SIM_DEFINES})
 target_compile_options(sim PRIVATE -Wno-deprecated-declarations -Wno-unused-parameter -Wno-inconsistent-missing-override -Wno-format -fno-exceptions)
 
