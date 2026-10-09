@@ -88,6 +88,7 @@ class BridgeClient {
     DIRTY_PERM = 1 << 3,
     DIRTY_RUNS = 1 << 4,    // the run records, an action's answer
     DIRTY_REPORT = 1 << 5,  // a requested report arrived
+    DIRTY_CONVO = 1 << 6,   // the followed conversation changed
   };
 
   BridgeClient() = default;
@@ -128,6 +129,11 @@ class BridgeClient {
   bool lastActOk() const { return actOk; }
   const std::string& reportName() const { return reportFor; }
   const std::string& reportText() const { return reportBody; }
+  // Follows a master session's conversation: the items before `end`, -1 the
+  // newest as they come; "" stops. Remembered and asked again after a
+  // reconnect. Its last `convo` frame comes as convoFrame() with DIRTY_CONVO.
+  void followConvo(const char* master, int64_t end);
+  const std::string& convoFrame() const { return convoJson; }
 
   const Session* findSession(const char* sid) const;
   const Perm* findPerm(const char* sid) const;
@@ -144,6 +150,9 @@ class BridgeClient {
   bool actOk = true;
   std::string reportFor;
   std::string reportBody;
+  std::string convoMaster;
+  int64_t convoEnd = -1;
+  std::string convoJson;
   std::unique_ptr<Model> modelInternal;
   Model* modelPtr = nullptr;
 

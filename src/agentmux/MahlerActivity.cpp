@@ -25,7 +25,11 @@ constexpr uint8_t FAST_BETWEEN_CLEAN = 30;
 MahlerActivity::MahlerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, BridgeClient& bridge)
     : Activity("Mahler", renderer, mappedInput), bridge(bridge) {}
 
-MahlerActivity::~MahlerActivity() { mahler_ui_free(ui); }
+MahlerActivity::~MahlerActivity() {
+  // A conversation followed here is no one's once the screen is gone.
+  bridge.followConvo("", -1);
+  mahler_ui_free(ui);
+}
 
 void MahlerActivity::onEnter() {
   Activity::onEnter();
@@ -68,6 +72,9 @@ void MahlerActivity::apply(const MahlerEffect& effect) {
     case MAHLER_EFFECT_REPORT:
       bridge.requestReport(effect.name);
       break;
+    case MAHLER_EFFECT_CONVO:
+      bridge.followConvo(effect.name, effect.end);
+      break;
     default:
       break;
   }
@@ -83,6 +90,12 @@ void MahlerActivity::loop() {
     if ((dirty & BridgeClient::DIRTY_RUNS) && !frame.empty()) mahler_ui_set_runs(ui, frame.data(), frame.size());
     if (dirty & BridgeClient::DIRTY_RUNS) mahler_ui_set_act_result(ui, bridge.lastActOk(), bridge.lastAct().c_str());
     tellLink();
+    pendingRedraw = true;
+  }
+  if (dirty & BridgeClient::DIRTY_CONVO) {
+    RenderLock lock(*this);
+    const std::string& frame = bridge.convoFrame();
+    if (!frame.empty()) mahler_ui_set_convo(ui, frame.data(), frame.size());
     pendingRedraw = true;
   }
   if (dirty & BridgeClient::DIRTY_REPORT) {

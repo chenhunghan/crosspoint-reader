@@ -317,6 +317,18 @@ bool BridgeClient::requestReport(const char* name) {
   return sendTx(serializeJson(doc, tx, sizeof(tx)));
 }
 
+void BridgeClient::followConvo(const char* master, const int64_t end) {
+  convoMaster = master;
+  convoEnd = end;
+  convoJson.clear();
+  if (linkState != LinkState::Online) return;
+  JsonDocument doc(&jsonAllocator);
+  doc["t"] = "convo";
+  doc["master"] = convoMaster;
+  doc["end"] = convoEnd;
+  sendTx(serializeJson(doc, tx, sizeof(tx)));
+}
+
 const Session* BridgeClient::findSession(const char* sid) const {
   if (!modelPtr || !sid) return nullptr;
   for (int i = 0; i < modelPtr->sessionCount; ++i) {
@@ -355,6 +367,7 @@ void BridgeClient::handleFrame(const uint8_t* payload, const size_t length) {
   }
   const char* t = doc["t"] | "";
   bool needSubscribe = false;
+  bool needConvo = false;
   bool needList = false;
 
   {
@@ -370,6 +383,7 @@ void BridgeClient::handleFrame(const uint8_t* payload, const size_t length) {
       ws.setReconnectInterval(backoffMs);
       lastPingMs = millis();
       needSubscribe = subscribedSid[0] != '\0';
+      needConvo = !convoMaster.empty();
       LOG_INF("AMUX", "Online (bridge %s)", m.bridgeHost);
     } else if (strcmp(t, "sessions") == 0) {
       const JsonArrayConst items = doc["items"].as<JsonArrayConst>();
@@ -476,6 +490,12 @@ void BridgeClient::handleFrame(const uint8_t* payload, const size_t length) {
       runsJson.assign(reinterpret_cast<const char*>(payload), length);
       runsAtMs = millis();
       dirty |= DIRTY_RUNS;
+    } else if (strcmp(t, "convo") == 0) {
+      // Only the conversation followed now; one asked for before may still come.
+      if (convoMaster == (doc["master"] | "")) {
+        convoJson.assign(reinterpret_cast<const char*>(payload), length);
+        dirty |= DIRTY_CONVO;
+      }
     } else if (strcmp(t, "act_result") == 0) {
       actOk = doc["ok"] | false;
       actMessage = doc["msg"] | "";
@@ -502,6 +522,7 @@ void BridgeClient::handleFrame(const uint8_t* payload, const size_t length) {
   }
 
   if (needSubscribe) sendSubscribe();
+  if (needConvo) followConvo(convoMaster.c_str(), convoEnd);
   if (needList) requestList();
 }
 
